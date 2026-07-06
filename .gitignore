@@ -1,0 +1,34 @@
+# innerdoc: 内部文档，不提交到 git
+innerdoc/
+
+# Qwen Code 工具状态
+.qwen/
+
+# Maven
+target/
+*.class
+*.jar
+*.war
+dependency-reduced-pom.xml
+
+# IDE
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+.vscode/
+*.swp
+*~
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# MkDocs build output
+_site/
