@@ -32,3 +32,6 @@ Thumbs.db
 
 # MkDocs build output
 _site/
+
+# Release artifacts
+dist/
