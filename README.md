@@ -1,70 +1,59 @@
 # Java Code Indexer
 
-> Java AST-level code indexer with SQLite storage, exposed as an [MCP](https://modelcontextprotocol.io/) server for AI coding assistants.
-
-[中文](README.zh-CN.md) | English
-
----
+A Java AST-level code indexer with SQLite storage, exposed as an [MCP](https://modelcontextprotocol.io/) server for AI coding assistants.
 
 ## Why
 
-AI coding assistants exploring an unfamiliar Java project today:
+AI coding assistants exploring an unfamiliar Java project today face significant challenges. Without an indexer, tasks like finding where `UserService` is defined require grepping across 100+ files (~15k tokens), understanding all callers of `saveOrder()` requires reading files one by one (~8k tokens), and locating configuration values involves multiple find and cat commands (~5k tokens). With Java Code Indexer, these tasks become efficient: `find_symbol("UserService")` uses only ~200 tokens, `get_call_graph("saveOrder", "callers")` uses ~500 tokens, and `search_config("spring.datasource.url")` uses ~200 tokens.
 
-| Task | Without Java Code Indexer | With Java Code Indexer |
-|------|--------------------------|----------------------|
-| Find where `UserService` is defined | `grep` across 100+ files (~15k tokens) | `find_symbol("UserService")` (~200 tokens) |
-| Understand all callers of `saveOrder()` | Read files one by one (~8k tokens) | `get_call_graph("saveOrder", "callers")` (~500 tokens) |
-| Find a config value in YAML/properties | `find` + `cat` multiple config files (~5k tokens) | `search_config("spring.datasource.url")` (~200 tokens) |
-| Locate all dependencies | Open pom.xml + transitive (~3k tokens) | `find_dependencies("spring-boot-starter")` (~300 tokens) |
+## Features
 
----
+- **Symbol Extraction**: Parse Java source files to extract classes, methods, fields, and their locations
+- **Reference Tracking**: Find all reference locations for any symbol
+- **Call Graph Analysis**: Get method callers, callees, or both directions
+- **Code Search**: Search symbol names and code content
+- **File Information**: Get file details including symbols, code chunks, and call relationships
+- **Config Search**: Search YAML, Properties, and .env configuration files
+- **Dependency Discovery**: Search Maven/Gradle dependencies
+- **Multi-Project Support**: Index and query multiple projects
 
 ## Installation
 
-**Option 1: Download JAR (recommended)**
+### Option 1: Download JAR (Recommended)
 
 ```bash
-# Download from GitHub Releases
 curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-latest.jar
 ```
 
-**Option 2: Build from source**
+### Option 2: Build from Source
 
 ```bash
 git clone https://github.com/sodlinken/java-code-indexer.git
 cd java-code-indexer
 mvn package -q -DskipTests
-# output: target/java-code-indexer-*-shaded.jar
 ```
 
-**Option 3: Native Image (GraalVM)**
+### Option 3: Native Image (GraalVM)
 
 ```bash
-native-image -jar target/java-code-indexer-*-shaded.jar \
-  -o jindexer --no-fallback
+native-image -jar target/java-code-indexer-*-shaded.jar -o jindexer --no-fallback
 ```
 
-**Option 4: Docker**
+### Option 4: Docker
 
 ```bash
 docker pull ghcr.io/sodlinken/java-code-indexer:latest
 ```
 
----
-
-## Quickstart
+## Quick Start
 
 ```bash
 # 1. Index your Java project
 java -jar jindexer.jar --project-root /path/to/your/java-project --index
 
-# 2. Start the MCP server (stdio, for Claude Code / Qwen Code / Cursor)
+# 2. Start the MCP server (stdio mode)
 java -jar jindexer.jar --project-root /path/to/your/java-project
 ```
-
-That's it. Your AI assistant can now query your codebase structure instead of reading files.
-
----
 
 ## CLI Reference
 
@@ -77,15 +66,9 @@ Options:
   --init                  Initialize database schema only
   --index                 Run indexer (extract symbols/references/calls)
   --help, -h              Show help
-
-No flags → start MCP server over stdio.
 ```
 
----
-
 ## MCP Tools
-
-When running as an MCP server, Java Code Indexer exposes these tools:
 
 | Tool | Description |
 |------|-------------|
@@ -96,10 +79,7 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 | `get_file_info` | File details: symbols, code chunks, call relationships |
 | `search_config` | Search config files (YAML / Properties / .env) |
 | `find_dependencies` | Search project dependencies (Maven / Gradle) |
-| `semantic_search` | Semantic search (requires Embedding config, not yet active) |
 | `list_projects` | List indexed projects (multi-project mode only) |
-
----
 
 ## Configuration
 
@@ -117,19 +97,15 @@ embedding:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `INDEXER_EMBEDDING_ENABLED` | Enable embedding API | `false` |
-| `INDEXER_EMBEDDING_BASE_URL` | Embedding API endpoint | — |
-| `INDEXER_EMBEDDING_MODEL` | Embedding model name | — |
 | `INDEXER_THREADS` | Indexing thread count | `4` |
 | `INDEXER_LOG_LEVEL` | Log level | `INFO` |
+| `INDEXER_EMBEDDING_ENABLED` | Enable embedding API | `false` |
 
 Priority: CLI flags → environment variables → config file → defaults.
 
----
-
 ## AI Assistant Integration
 
-### Qwen Code / Claude Desktop / Cursor
+### Claude Desktop / Qwen Code / Cursor
 
 Add to your MCP configuration:
 
@@ -144,49 +120,13 @@ Add to your MCP configuration:
 }
 ```
 
----
-
 ## How It Works
 
-```
-┌──────────────┐     MCP (stdio)     ┌──────────────────────┐
-│  AI Assistant │ ◄─────────────────► │  Java Code Indexer   │
-│  (Qwen/Claude)│    JSON-RPC         │                      │
-└──────────────┘                     │  ┌────────────────┐  │
-                                     │  │ JavaParser AST │  │
-                                     │  └───────┬────────┘  │
-                                     │          ▼            │
-                                     │  ┌────────────────┐  │
-                                     │  │  SQLite (WAL)  │  │
-                                     │  │  symbols       │  │
-                                     │  │  references    │  │
-                                     │  │  call_graphs   │  │
-                                     │  │  configs       │  │
-                                     │  │  dependencies  │  │
-                                     │  └────────────────┘  │
-                                     └──────────────────────┘
-```
-
-### Indexing Strategy
-
-1. Walk Java source files via filesystem traversal
-2. SHA-1 content hash skips unchanged files (incremental)
-3. JavaParser AST extracts symbols, references, and call relationships
-4. POM/Gradle parsers extract dependency information
-5. Config parsers extract YAML/Properties/.env entries
-6. All data upserted into embedded SQLite (WAL mode)
+Java Code Indexer walks Java source files using filesystem traversal, uses SHA-1 content hash to skip unchanged files for incremental indexing, extracts symbols, references, and call relationships via JavaParser AST, parses POM/Gradle files for dependency information, extracts YAML/Properties/.env entries for config data, and stores everything in embedded SQLite with WAL mode.
 
 ### Database Schema
 
-Five core tables:
-
-- **`symbols`** — classes, methods, fields with location and signatures
-- **`references`** — symbol usage locations across the codebase
-- **`calls`** — method call relationships (caller → callee)
-- **`chunks`** — code slices at class/method granularity
-- **`file_hashes`** — SHA-1 hashes for incremental indexing
-
----
+Five core tables store the indexed data: **symbols** for classes, methods, fields with location and signatures; **references** for symbol usage locations across the codebase; **calls** for method call relationships; **chunks** for code slices at class/method granularity; and **file_hashes** for SHA-1 hashes enabling incremental indexing.
 
 ## Architecture
 
@@ -204,35 +144,6 @@ src/main/java/com/sodlinken/jindexer/
 └── util/         # SHA-1 hashing utility
 ```
 
----
-
-## Distribution
-
-### Fat JAR
-
-```bash
-mvn package -q -DskipTests
-# output: target/java-code-indexer-0.1.0-SNAPSHOT-shaded.jar
-```
-
-### Native Image (GraalVM)
-
-```bash
-native-image -jar target/java-code-indexer-*-shaded.jar \
-  -o jindexer --no-fallback -H:+ReportExceptionStackTraces
-```
-
-Produces a single binary (~30-50 MB) with instant startup, no JVM required.
-
-### Docker
-
-```bash
-docker build -t java-code-indexer .
-docker run --rm -v /path/to/project:/project java-code-indexer --project-root /project --index
-```
-
----
-
 ## Development
 
 ```bash
@@ -242,8 +153,7 @@ cd java-code-indexer
 mvn package -q -DskipTests
 
 # Index this project itself
-java -jar target/java-code-indexer-*-shaded.jar \
-  --project-root . --index
+java -jar target/java-code-indexer-*-shaded.jar --project-root . --index
 
 # Start MCP server
 java -jar target/java-code-indexer-*-shaded.jar --project-root .
@@ -251,16 +161,7 @@ java -jar target/java-code-indexer-*-shaded.jar --project-root .
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
----
-
-## What It Is NOT
-
-- Not a code execution sandbox
-- Not a test runner or linter
-- Not a replacement for LSP/IDE features
-- Not AI-generated summaries (symbol extraction is deterministic)
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## License
 
