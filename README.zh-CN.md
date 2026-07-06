@@ -21,6 +21,8 @@ AI 编程助手探索一个不熟悉的 Java 项目时：
 
 ## 安装
 
+需要 **Java 21+**（JRE 或 JDK）。Docker 和 Native Image 方式已内置运行时。
+
 **方式一：下载 JAR（推荐）**
 
 ```bash
@@ -28,7 +30,7 @@ AI 编程助手探索一个不熟悉的 Java 项目时：
 curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-latest.jar
 ```
 
-**方式二：从源码构建**
+**方式二：从源码构建**（需要 Java 21+ 和 Maven 3.8+）
 
 ```bash
 git clone https://github.com/sodlinken/java-code-indexer.git

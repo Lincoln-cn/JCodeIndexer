@@ -21,6 +21,8 @@ AI coding assistants exploring an unfamiliar Java project today:
 
 ## Installation
 
+Requires **Java 21+** (JRE or JDK). Docker and Native Image options bundle the runtime.
+
 **Option 1: Download JAR (recommended)**
 
 ```bash
@@ -28,7 +30,7 @@ AI coding assistants exploring an unfamiliar Java project today:
 curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-latest.jar
 ```
 
-**Option 2: Build from source**
+**Option 2: Build from source** (requires Java 21+ and Maven 3.8+)
 
 ```bash
 git clone https://github.com/sodlinken/java-code-indexer.git
