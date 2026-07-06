@@ -139,12 +139,14 @@ Add to your MCP configuration:
 {
   "mcpServers": {
     "java-code-indexer": {
-      "command": "java",
+      "command": "/path/to/jdk-21/bin/java",
       "args": ["-jar", "/path/to/jindexer.jar", "--project-root", "/path/to/project"]
     }
   }
 }
 ```
+
+> **Note:** `command` must point to a Java 21+ runtime. If `JAVA_HOME` is set to JDK 21, you can use `"${JAVA_HOME}/bin/java"` instead.
 
 ---
 

@@ -139,12 +139,14 @@ embedding:
 {
   "mcpServers": {
     "java-code-indexer": {
-      "command": "java",
+      "command": "/path/to/jdk-21/bin/java",
       "args": ["-jar", "/path/to/jindexer.jar", "--project-root", "/path/to/project"]
     }
   }
 }
 ```
+
+> **注意：** `command` 必须指向 Java 21+ 运行时。如果 `JAVA_HOME` 已指向 JDK 21，可使用 `"${JAVA_HOME}/bin/java"`。
 
 ---
 
