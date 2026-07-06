@@ -176,7 +176,40 @@ src/main/java/com/sodlinken/jindexer/
 - [架构设计](doc/design/index.md)
 - [API 参考](doc/api/index.md)
 
-内部设计文档位于 `innerdoc/`（不公开发布）。
+## 发布方案
+
+### Fat JAR（默认）
+
+```bash
+mvn package -q -DskipTests
+# 产物：target/java-code-indexer-0.1.0-SNAPSHOT-shaded.jar
+```
+
+### Native Image（GraalVM）
+
+需要安装 GraalVM JDK 21 及 `native-image`。
+
+```bash
+mvn package -q -DskipTests -Pnative
+# 或手动构建：
+native-image -jar target/java-code-indexer-*-shaded.jar \
+  -o jindexer --no-fallback -H:+ReportExceptionStackTraces
+```
+
+生成单一原生二进制文件（约 30-50 MB），即时启动，运行时无需 JVM。
+
+### Docker 镜像
+
+```dockerfile
+FROM eclipse-temurin:21-jre-alpine
+COPY target/java-code-indexer-*-shaded.jar /app/jindexer.jar
+ENTRYPOINT ["java", "-jar", "/app/jindexer.jar"]
+```
+
+```bash
+docker build -t java-code-indexer .
+docker run --rm -v /path/to/project:/project java-code-indexer --project-root /project --index
+```
 
 ## 贡献
 

@@ -176,7 +176,40 @@ Full documentation is available at the project's MkDocs site (if deployed), or b
 - [Architecture Design](doc/design/index.md)
 - [API Reference](doc/api/index.md)
 
-Internal design documents are in `innerdoc/` (not published).
+## Distribution
+
+### Fat JAR (default)
+
+```bash
+mvn package -q -DskipTests
+# output: target/java-code-indexer-0.1.0-SNAPSHOT-shaded.jar
+```
+
+### Native Image (GraalVM)
+
+Requires GraalVM JDK 21 with `native-image` installed.
+
+```bash
+mvn package -q -DskipTests -Pnative
+# or build manually:
+native-image -jar target/java-code-indexer-*-shaded.jar \
+  -o jindexer --no-fallback -H:+ReportExceptionStackTraces
+```
+
+Produces a single native binary (~30-50 MB) with instant startup, no JVM required at runtime.
+
+### Docker Image
+
+```dockerfile
+FROM eclipse-temurin:21-jre-alpine
+COPY target/java-code-indexer-*-shaded.jar /app/jindexer.jar
+ENTRYPOINT ["java", "-jar", "/app/jindexer.jar"]
+```
+
+```bash
+docker build -t java-code-indexer .
+docker run --rm -v /path/to/project:/project java-code-indexer --project-root /project --index
+```
 
 ## Contributing
 
