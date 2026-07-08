@@ -244,12 +244,13 @@ build_native_image() {
 }
 
 # ─── Docker 镜像 ──────────────────────────────────────
-build_and_push_docker() {
-    if [[ "$PUSH_DOCKER" != true ]]; then
-        return
+build_docker_image() {
+    if ! command -v docker &>/dev/null; then
+        warn "Docker 未安装，跳过镜像构建"
+        return 0
     fi
 
-    info "构建并推送 Docker 镜像..."
+    info "构建 Docker 镜像..."
 
     local image_base="${DOCKER_IMAGE_NAME}"
     [[ -n "$DOCKER_REGISTRY" ]] && image_base="${DOCKER_REGISTRY}/${image_base}"
@@ -281,6 +282,7 @@ DOCKERFILE_EOF
     jar_file=$(find "$OUTPUT_DIR" -name "*.jar" -not -name "Dockerfile.release" | head -1)
     if [[ -z "$jar_file" ]]; then
         error "未找到 JAR 文件，无法构建 Docker 镜像"
+        rm -f "$tmp_dockerfile"
         return 1
     fi
     cp "$jar_file" "$OUTPUT_DIR/jindexer.jar"
@@ -292,19 +294,29 @@ DOCKERFILE_EOF
     # 清理临时文件
     rm -f "$tmp_dockerfile" "$OUTPUT_DIR/jindexer.jar"
 
-    # 推送镜像
-    info "推送 $full_tag ..."
-    docker push "$full_tag"
+    # 导出离线 tar（用于 GitHub Release）
+    local tar_file="$OUTPUT_DIR/jindexer-${VERSION}-docker.tar"
+    info "导出 Docker 离线镜像: $tar_file"
+    docker save -o "$tar_file" "$full_tag"
+    success "Docker 离线镜像: $(ls -lh "$tar_file" | awk '{print $5}') $tar_file"
 
-    if [[ "$DOCKER_TAG" != "latest" ]]; then
-        info "推送 $latest_tag ..."
-        docker push "$latest_tag"
+    # 推送到 Docker Hub（仅在 --push-docker 时）
+    if [[ "$PUSH_DOCKER" == true ]]; then
+        info "推送 $full_tag ..."
+        docker push "$full_tag"
+
+        if [[ "$DOCKER_TAG" != "latest" ]]; then
+            info "推送 $latest_tag ..."
+            docker push "$latest_tag"
+        fi
+
+        info "推送 $version_tag ..."
+        docker push "$version_tag"
+
+        success "Docker 镜像已推送: $full_tag, $latest_tag, $version_tag"
+    else
+        info "跳过 Docker Hub 推送（使用 --push-docker 启用）"
     fi
-
-    info "推送 $version_tag ..."
-    docker push "$version_tag"
-
-    success "Docker 镜像已推送: $full_tag, $latest_tag, $version_tag"
 }
 
 # ─── SHA-256 校验 ──────────────────────────────────────
@@ -316,7 +328,7 @@ generate_checksums() {
 
     : > "$checksum_file"
 
-    for f in *.jar jindexer*; do
+    for f in *.jar jindexer* *.tar; do
         [[ -f "$f" ]] || continue
         [[ "$f" == "checksums.sha256" ]] && continue
         sha256sum "$f" >> "$checksum_file"
@@ -362,7 +374,7 @@ main() {
     info "版本: $VERSION"
     info "输出目录: $OUTPUT_DIR"
     info "Native Image: $BUILD_NATIVE"
-    info "Docker Push: $PUSH_DOCKER"
+    info "Docker: 构建离线镜像（使用 --push-docker 推送到 Hub）"
     if [[ "$PUSH_DOCKER" == true ]]; then
         local image_info="$DOCKER_IMAGE_NAME"
         [[ -n "$DOCKER_REGISTRY" ]] && image_info="$DOCKER_REGISTRY/$image_info"
@@ -387,8 +399,8 @@ main() {
 
     echo ""
 
-    # 构建并推送 Docker 镜像
-    build_and_push_docker
+    # 构建并导出 Docker 镜像
+    build_docker_image
 
     echo ""
 
