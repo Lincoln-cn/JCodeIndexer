@@ -78,6 +78,7 @@ jobs:
       - name: Rename JAR
         run: |
           VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p dist
           JAR=$(find target -name "*-shaded.jar" -not -name "*.original" | head -1)
           cp "$JAR" "dist/java-code-indexer-${VERSION}.jar"
         working-directory: ${{ github.workspace }}
