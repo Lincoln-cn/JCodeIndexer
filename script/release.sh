@@ -15,8 +15,8 @@
 #
 # 环境变量:
 #   VERSION               覆盖版本号（优先级高于 --version）
-#   DOCKER_REGISTRY       Docker 镜像仓库前缀（默认：ghcr.io/sodlinken）
-#   DOCKER_IMAGE_NAME     Docker 镜像名（默认：java-code-indexer）
+#   DOCKER_REGISTRY       Docker 镜像仓库前缀（默认：空，即 Docker Hub）
+#   DOCKER_IMAGE_NAME     Docker 镜像名（默认：sodlinken/jcodeindexer）
 #   DOCKER_TAG            Docker 标签（默认：latest）
 
 set -euo pipefail
@@ -42,8 +42,8 @@ PUSH_DOCKER=false
 SKIP_TESTS=false
 VERSION="${VERSION:-}"
 
-DOCKER_REGISTRY="${DOCKER_REGISTRY:-ghcr.io/sodlinken}"
-DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-java-code-indexer}"
+DOCKER_REGISTRY="${DOCKER_REGISTRY:-}"
+DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-sodlinken/jcodeindexer}"
 DOCKER_TAG="${DOCKER_TAG:-latest}"
 
 # ─── 帮助 ──────────────────────────────────────────────
@@ -68,11 +68,11 @@ Java Code Indexer 发布脚本
   # 指定版本号，跳过 Native Image
   ./script/release.sh -v 1.0.0 --skip-native
 
-  # 构建并推送 Docker 镜像
-  DOCKER_REGISTRY=myregistry.com ./script/release.sh --push-docker
+  # 推送到 Docker Hub（默认 sodlinken/jcodeindexer）
+  ./script/release.sh --push-docker
 
-  # 完整发布（JAR + Native + Docker push）
-  DOCKER_REGISTRY=myregistry.com ./script/release.sh --push-docker
+  # 推送到私有 registry
+  DOCKER_REGISTRY=myregistry.com DOCKER_IMAGE_NAME=myapp ./script/release.sh --push-docker
 
   # CI 环境使用
   VERSION=1.0.0 ./script/release.sh --push-docker
@@ -251,9 +251,12 @@ build_and_push_docker() {
 
     info "构建并推送 Docker 镜像..."
 
-    local full_tag="${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${DOCKER_TAG}"
-    local latest_tag="${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:latest"
-    local version_tag="${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${VERSION}"
+    local image_base="${DOCKER_IMAGE_NAME}"
+    [[ -n "$DOCKER_REGISTRY" ]] && image_base="${DOCKER_REGISTRY}/${image_base}"
+
+    local full_tag="${image_base}:${DOCKER_TAG}"
+    local latest_tag="${image_base}:latest"
+    local version_tag="${image_base}:${VERSION}"
 
     # 生成临时 Dockerfile
     local tmp_dockerfile="$OUTPUT_DIR/Dockerfile.release"
@@ -361,7 +364,9 @@ main() {
     info "Native Image: $BUILD_NATIVE"
     info "Docker Push: $PUSH_DOCKER"
     if [[ "$PUSH_DOCKER" == true ]]; then
-        info "Docker Registry: $DOCKER_REGISTRY/$DOCKER_IMAGE_NAME"
+        local image_info="$DOCKER_IMAGE_NAME"
+        [[ -n "$DOCKER_REGISTRY" ]] && image_info="$DOCKER_REGISTRY/$image_info"
+        info "Docker Image: $image_info"
     fi
     echo ""
 
