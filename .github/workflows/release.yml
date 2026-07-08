@@ -73,13 +73,24 @@ jobs:
           fi
 
       - name: Build
-        run: mvn package -q -DskipTests
+        run: mvn package -DskipTests
+
+      - name: List target directory
+        run: ls -la target/
+        working-directory: ${{ github.workspace }}
 
       - name: Rename JAR
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           mkdir -p dist
           JAR=$(find target -name "*-shaded.jar" -not -name "*.original" | head -1)
+          if [[ -z "$JAR" ]]; then
+            echo "No shaded JAR found. Listing target directory:"
+            ls -la target/
+            # Try to find any JAR file
+            JAR=$(find target -name "*.jar" -not -name "*.original" -not -name "original-*" | head -1)
+          fi
+          echo "Using JAR: $JAR"
           cp "$JAR" "dist/java-code-indexer-${VERSION}.jar"
         working-directory: ${{ github.workspace }}
 
