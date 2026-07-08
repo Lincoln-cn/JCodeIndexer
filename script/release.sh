@@ -231,7 +231,7 @@ build_native_image() {
         --no-fallback \
         -H:+ReportExceptionStackTraces \
         -H:+UnlockExperimentalVMOptions \
-        -H:ConfigurationFileDirectories="$PROJECT_ROOT/src/main/resources/META-INF/native-image"
+        -H:ConfigurationFileDirectories="$PROJECT_ROOT/src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer"
 
     rm -f "$work_jar"
 

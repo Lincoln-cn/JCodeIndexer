@@ -1,0 +1,164 @@
+{
+  "serialization": [
+    {
+      "name": "java.sql.SQLException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLWarning",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.BatchUpdateException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.DataTruncation",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLClientInfoException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLDataException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLFeatureNotSupportedException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLIntegrityConstraintViolationException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLInvalidAuthorizationSpecException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLNonTransientConnectionException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLNonTransientException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLRecoverableException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLSyntaxErrorException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLTimeoutException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLTransactionRollbackException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLTransientConnectionException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLTransientException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLWarning",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLDataException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLFeatureNotSupportedException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLIntegrityConstraintViolationException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLInvalidAuthorizationSpecException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLNonTransientConnectionException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLNonTransientException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLRecoverableException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLSyntaxErrorException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLTimeoutException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLTransactionRollbackException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLTransientConnectionException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLTransientException",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "name": "java.sql.SQLWarning",
+      "allDeclaredFields": true,
+      "allDeclaredConstructors": true
+    }
+  ]
+}

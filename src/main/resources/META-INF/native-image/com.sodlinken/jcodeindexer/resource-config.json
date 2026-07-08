@@ -1,0 +1,13 @@
+{
+  "resources": {
+    "includes": [
+      {"pattern": "logback.xml"},
+      {"pattern": "logback-spring.xml"},
+      {"pattern": "logback-test.xml"},
+      {"pattern": "META-INF/services/.*"},
+      {"pattern": "META-INF/native-image/.*"},
+      {"pattern": "org/slf4j/impl/StaticLoggerBinder.class"},
+      {"pattern": "org/slf4j/LoggerFactory.class"}
+    ]
+  }
+}

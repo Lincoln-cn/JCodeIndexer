@@ -117,6 +117,9 @@ jobs:
           - os: darwin
             arch: arm64
             runner: macos-latest
+          - os: windows
+            arch: amd64
+            runner: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -134,14 +137,38 @@ jobs:
           name: shaded-jar
           path: target/
 
+      - name: Fix sqlite-jdbc multi-release JAR
+        run: |
+          # sqlite-jdbc 把 GraalVM Feature 放在 META-INF/versions/9/
+          # native-image 无法识别，需要提取到根路径
+          JAR=$(find target -name "*-shaded.jar" | head 1)
+          WORK_JAR="target/jindexer-build.jar"
+          cp "$JAR" "$WORK_JAR"
+
+          # 提取 Feature 类
+          TMP_EXTRACT=$(mktemp -d)
+          unzip -qo "$WORK_JAR" "META-INF/versions/9/org/sqlite/*" -d "$TMP_EXTRACT" 2>/dev/null || true
+
+          if [[ -d "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage" ]]; then
+            echo "Fixing sqlite-jdbc multi-release JAR..."
+            # 从 versions/9 下移除 sqlite 目录
+            zip -qd "$WORK_JAR" "META-INF/versions/9/org/sqlite/*" 2>/dev/null || true
+            # 将 Feature 类放到 JAR 根路径
+            (cd "$TMP_EXTRACT/META-INF/versions/9" && zip -qr "$WORK_JAR" org/sqlite/nativeimage/)
+          fi
+          rm -rf "$TMP_EXTRACT"
+          echo "jindexer-build.jar" > target/jar-name.txt
+
       - name: Build Native Image
         run: |
           VERSION="${{ needs.build.outputs.version }}"
-          JAR=$(find target -name "*-shaded.jar" | head 1)
-          native-image -jar "$JAR" \
+          WORK_JAR="target/jindexer-build.jar"
+          native-image -jar "$WORK_JAR" \
             -o "jindexer" \
             --no-fallback \
-            -H:+ReportExceptionStackTraces
+            -H:+ReportExceptionStackTraces \
+            -H:+UnlockExperimentalVMOptions \
+            -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
 
       - name: Package
         run: |
@@ -150,16 +177,28 @@ jobs:
           OS="${{ matrix.os }}"
           DIR="dist/java-code-indexer-${VERSION}-${OS}-${ARCH}"
           mkdir -p "$DIR"
-          mv jindexer "$DIR/"
+          # Windows 上添加 .exe 后缀
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            mv jindexer.exe "$DIR/"
+          else
+            mv jindexer "$DIR/"
+          fi
           cp LICENSE "$DIR/" 2>/dev/null || true
-          tar -czf "dist/java-code-indexer-${VERSION}-${OS}-${ARCH}.tar.gz" -C dist "$DIR"
+          # Windows 使用 zip，其他平台使用 tar.gz
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            cd dist && zip -r "java-code-indexer-${VERSION}-${OS}-${ARCH}.zip" "$DIR" && cd ..
+          else
+            tar -czf "dist/java-code-indexer-${VERSION}-${OS}-${ARCH}.tar.gz" -C dist "$DIR"
+          fi
           rm -rf "$DIR"
 
       - name: Upload Native
         uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.os }}-${{ matrix.arch }}
-          path: dist/java-code-indexer-*-native*.tar.gz
+          path: |
+            dist/java-code-indexer-*.tar.gz
+            dist/java-code-indexer-*.zip
           retention-days: 5
 
   # ─── 阶段 3: Docker 镜像 ──────────────────────────────
@@ -276,6 +315,7 @@ jobs:
             dist/java-code-indexer-*-linux-arm64.tar.gz
             dist/java-code-indexer-*-darwin-amd64.tar.gz
             dist/java-code-indexer-*-darwin-arm64.tar.gz
+            dist/java-code-indexer-*-windows-amd64.zip
             dist/checksums-*.sha256
           fail_on_unmatched_files: false
         env:
