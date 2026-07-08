@@ -12,7 +12,8 @@ LABEL org.opencontainers.image.source="https://github.com/sodlinken/java-code-in
 
 RUN addgroup -S jindexer && adduser -S jindexer -G jindexer
 
-COPY target/java-code-indexer-*-shaded.jar /app/jindexer.jar
+# maven-shade-plugin 3.5+ replaces original jar (no -shaded suffix)
+COPY target/java-code-indexer-*.jar /app/jindexer.jar
 
 USER jindexer
 
