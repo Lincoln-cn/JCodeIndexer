@@ -35,3 +35,6 @@ _site/
 
 # Release artifacts
 dist/
+release/*/
+!release/README.md
+!release/.gitkeep

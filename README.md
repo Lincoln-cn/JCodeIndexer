@@ -212,27 +212,46 @@ src/main/java/com/sodlinken/jindexer/
 
 ## Distribution
 
-### Fat JAR
+产物输出到 `release/<version>/` 目录。
+
+### 一键构建
 
 ```bash
-mvn package -q -DskipTests
-# output: target/java-code-indexer-0.1.0-SNAPSHOT-shaded.jar
+# 构建 Fat JAR + Native Image
+./script/release.sh
+
+# 指定版本号
+./script/release.sh -v 1.0.0
+
+# 跳过 Native Image
+./script/release.sh -v 1.0.0 --skip-native
+```
+
+### Fat JAR
+
+构建产物位于 `release/<version>/java-code-indexer-<version>.jar`，需 Java 21+。
+
+```bash
+java -jar release/1.0.0/java-code-indexer-1.0.0.jar --project-root /path/to/project
 ```
 
 ### Native Image (GraalVM)
 
-```bash
-native-image -jar target/java-code-indexer-*-shaded.jar \
-  -o jindexer --no-fallback -H:+ReportExceptionStackTraces
-```
+构建产物位于 `release/<version>/jindexer`，无需 JVM，启动即时。
 
-Produces a single binary (~30-50 MB) with instant startup, no JVM required.
+```bash
+./release/1.0.0/jindexer --project-root /path/to/project --index
+```
 
 ### Docker
 
 ```bash
+# 本地构建并运行
 docker build -t java-code-indexer .
 docker run --rm -v /path/to/project:/project java-code-indexer --project-root /project --index
+
+# 推送到私有 registry
+DOCKER_REGISTRY=your-registry.com ./script/release.sh --push-docker
 ```
 
 ---

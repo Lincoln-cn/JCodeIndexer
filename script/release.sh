@@ -7,9 +7,9 @@
 #
 # 选项:
 #   --version, -v <ver>    指定版本号（默认从 pom.xml 读取）
-#   --native               构建 GraalVM Native Image（需 GraalVM JDK 21）
-#   --docker               构建 Docker 镜像
-#   --output, -o <dir>     输出目录（默认 dist/）
+#   --skip-native          跳过 GraalVM Native Image 构建
+#   --push-docker          构建并推送 Docker 镜像到 registry
+#   --output, -o <dir>     输出目录（默认 release/<version>/）
 #   --skip-tests           跳过测试
 #   --help, -h             显示帮助
 #
@@ -17,6 +17,7 @@
 #   VERSION               覆盖版本号（优先级高于 --version）
 #   DOCKER_REGISTRY       Docker 镜像仓库前缀（默认：ghcr.io/sodlinken）
 #   DOCKER_IMAGE_NAME     Docker 镜像名（默认：java-code-indexer）
+#   DOCKER_TAG            Docker 标签（默认：latest）
 
 set -euo pipefail
 
@@ -27,22 +28,23 @@ YELLOW='\033[0;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-info()    { echo -e "${CYAN}[INFO]${NC}  $*"; }
-success() { echo -e "${GREEN}[OK]${NC}    $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+info()    { echo -e "${CYAN}[INFO]${NC}  $*" >&2; }
+success() { echo -e "${GREEN}[OK]${NC}    $*" >&2; }
+warn()    { echo -e "${YELLOW}[WARN]${NC}  $*" >&2; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
 # ─── 默认值 ──────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-OUTPUT_DIR="$PROJECT_ROOT/dist"
-BUILD_NATIVE=false
-BUILD_DOCKER=false
+OUTPUT_DIR=""  # 延迟到版本号确定后设置
+BUILD_NATIVE=true
+PUSH_DOCKER=false
 SKIP_TESTS=false
 VERSION="${VERSION:-}"
 
 DOCKER_REGISTRY="${DOCKER_REGISTRY:-ghcr.io/sodlinken}"
 DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-java-code-indexer}"
+DOCKER_TAG="${DOCKER_TAG:-latest}"
 
 # ─── 帮助 ──────────────────────────────────────────────
 usage() {
@@ -53,27 +55,27 @@ Java Code Indexer 发布脚本
 
 选项:
   --version, -v <ver>    指定版本号（默认从 pom.xml 读取）
-  --native               构建 GraalVM Native Image
-  --docker               构建 Docker 镜像
-  --output, -o <dir>     输出目录（默认 dist/）
+  --skip-native          跳过 GraalVM Native Image 构建
+  --push-docker          构建并推送 Docker 镜像到 registry
+  --output, -o <dir>     输出目录（默认 release/<version>/）
   --skip-tests           跳过测试
   --help, -h             显示帮助
 
 示例:
-  # 基本发布（仅 Fat JAR）
+  # 基本发布（Fat JAR + Native Image）
   ./script/release.sh
 
-  # 指定版本号
-  ./script/release.sh -v 0.1.0
+  # 指定版本号，跳过 Native Image
+  ./script/release.sh -v 1.0.0 --skip-native
 
-  # 包含 Native Image
-  ./script/release.sh --native
+  # 构建并推送 Docker 镜像
+  DOCKER_REGISTRY=myregistry.com ./script/release.sh --push-docker
 
-  # 完整发布（JAR + Native + Docker）
-  ./script/release.sh --native --docker
+  # 完整发布（JAR + Native + Docker push）
+  DOCKER_REGISTRY=myregistry.com ./script/release.sh --push-docker
 
   # CI 环境使用
-  VERSION=0.1.0 ./script/release.sh --native --docker
+  VERSION=1.0.0 ./script/release.sh --push-docker
 EOF
     exit 0
 }
@@ -85,12 +87,12 @@ while [[ $# -gt 0 ]]; do
             VERSION="$2"
             shift 2
             ;;
-        --native)
-            BUILD_NATIVE=true
+        --skip-native)
+            BUILD_NATIVE=false
             shift
             ;;
-        --docker)
-            BUILD_DOCKER=true
+        --push-docker)
+            PUSH_DOCKER=true
             shift
             ;;
         -o|--output)
@@ -128,9 +130,9 @@ check_deps() {
         BUILD_NATIVE=false
     fi
 
-    if [[ "$BUILD_DOCKER" == true ]] && ! command -v docker &>/dev/null; then
-        warn "docker 未安装，跳过 Docker 镜像构建"
-        BUILD_DOCKER=false
+    if [[ "$PUSH_DOCKER" == true ]] && ! command -v docker &>/dev/null; then
+        error "docker 未安装，无法推送 Docker 镜像"
+        exit 1
     fi
 
     if [[ ${#missing[@]} -gt 0 ]]; then
@@ -159,6 +161,11 @@ resolve_version() {
         VERSION="${VERSION%-SNAPSHOT}-${git_hash}"
         info "SNAPSHOT 版本，附加 commit hash: $VERSION"
     fi
+
+    # 设置输出目录
+    if [[ -z "$OUTPUT_DIR" ]]; then
+        OUTPUT_DIR="$PROJECT_ROOT/release/$VERSION"
+    fi
 }
 
 # ─── 构建 ──────────────────────────────────────────────
@@ -173,9 +180,9 @@ build_fat_jar() {
 
     mvn "${mvn_args[@]}"
 
-    # 查找构建产物
+    # 查找构建产物：shaded jar 替换了原始 jar，原始 jar 以 original- 前缀保存
     local jar_file
-    jar_file=$(find target -name "*-shaded.jar" -not -name "*.original" | head -1)
+    jar_file=$(find target -name "*.jar" -not -name "*.original*" -not -name "original-*" | head -1)
 
     if [[ -z "$jar_file" ]]; then
         error "Fat JAR 构建失败"
@@ -184,77 +191,6 @@ build_fat_jar() {
 
     success "Fat JAR: $jar_file"
     echo "$jar_file"
-}
-
-# ─── 创建归档 ──────────────────────────────────────────────
-create_archive() {
-    local jar_file="$1"
-    local jar_name
-    jar_name=$(basename "$jar_file")
-
-    mkdir -p "$OUTPUT_DIR"
-
-    local base_name="java-code-indexer-${VERSION}"
-
-    # --- Fat JAR (通用) ---
-    local jar_dest="$OUTPUT_DIR/${base_name}.jar"
-    cp "$jar_file" "$jar_dest"
-    info "Fat JAR: $jar_dest"
-
-    # --- Linux 归档 (tar.gz) ---
-    local linux_dir="$OUTPUT_DIR/${base_name}-linux-amd64"
-    mkdir -p "$linux_dir"
-    cp "$jar_file" "$linux_dir/jindexer.jar"
-    cp "$PROJECT_ROOT/LICENSE" "$linux_dir/" 2>/dev/null || true
-    cat > "$linux_dir/README.md" <<README_EOF
-# Java Code Indexer ${VERSION}
-
-## 使用方法
-
-\`\`\`bash
-java -jar jindexer.jar --project-root /path/to/project
-java -jar jindexer.jar --project-root /path/to/project --index
-\`\`\`
-
-详见: https://github.com/sodlinken/java-code-indexer
-README_EOF
-
-    cd "$OUTPUT_DIR"
-    tar -czf "${base_name}-linux-amd64.tar.gz" -C "$OUTPUT_DIR" "${base_name}-linux-amd64"
-    rm -rf "$linux_dir"
-    success "Linux 归档: $OUTPUT_DIR/${base_name}-linux-amd64.tar.gz"
-
-    # --- macOS 归档 (tar.gz) ---
-    local macos_dir="$OUTPUT_DIR/${base_name}-darwin-amd64"
-    mkdir -p "$macos_dir"
-    cp "$jar_file" "$macos_dir/jindexer.jar"
-    cp "$PROJECT_ROOT/LICENSE" "$macos_dir/" 2>/dev/null || true
-    cp "$linux_dir/README.md" "$macos_dir/README.md" 2>/dev/null || true
-    # 复制 README（如果还在）
-    if [[ ! -f "$macos_dir/README.md" ]]; then
-        echo "# Java Code Indexer ${VERSION}" > "$macos_dir/README.md"
-    fi
-
-    tar -czf "${base_name}-darwin-amd64.tar.gz" -C "$OUTPUT_DIR" "${base_name}-darwin-amd64"
-    rm -rf "$macos_dir"
-    success "macOS 归档: $OUTPUT_DIR/${base_name}-darwin-amd64.tar.gz"
-
-    # --- Windows 归档 (zip) ---
-    local windows_dir="$OUTPUT_DIR/${base_name}-windows-amd64"
-    mkdir -p "$windows_dir"
-    cp "$jar_file" "$windows_dir/jindexer.jar"
-    cp "$PROJECT_ROOT/LICENSE" "$windows_dir/" 2>/dev/null || true
-    echo "# Java Code Indexer ${VERSION}" > "$windows_dir/README.md"
-
-    if command -v zip &>/dev/null; then
-        cd "$OUTPUT_DIR"
-        zip -qr "${base_name}-windows-amd64.zip" "${base_name}-windows-amd64"
-        rm -rf "$windows_dir"
-        success "Windows 归档: $OUTPUT_DIR/${base_name}-windows-amd64.zip"
-    else
-        warn "zip 未安装，跳过 Windows 归档"
-        rm -rf "$windows_dir"
-    fi
 }
 
 # ─── Native Image ──────────────────────────────────────
@@ -272,55 +208,52 @@ build_native_image() {
 
     info "构建 Native Image..."
 
-    local os_type arch_type
-    os_type=$(uname -s | tr '[:upper:]' '[:lower:]')
-    arch_type=$(uname -m)
+    # 修复 multi-release JAR 问题：sqlite-jdbc 把 GraalVM Feature 放在 META-INF/versions/9/
+    # native-image 无法识别，需要将 Feature 类从 versions/9 提取到根路径
+    local work_jar="$OUTPUT_DIR/jindexer-build.jar"
+    cp "$jar_file" "$work_jar"
 
-    case "$arch_type" in
-        x86_64)  arch_type="amd64" ;;
-        aarch64) arch_type="arm64" ;;
-    esac
+    local tmp_extract
+    tmp_extract=$(mktemp -d)
+    unzip -qo "$work_jar" "META-INF/versions/9/org/sqlite/*" -d "$tmp_extract" 2>/dev/null || true
 
-    local binary_name="jindexer"
-    native-image -jar "$jar_file" \
-        -o "$OUTPUT_DIR/$binary_name" \
+    if [[ -d "$tmp_extract/META-INF/versions/9/org/sqlite/nativeimage" ]]; then
+        info "修复 sqlite-jdbc multi-release JAR：提取 Feature 类到根路径"
+        # 从 versions/9 下移除 sqlite 目录
+        zip -qd "$work_jar" "META-INF/versions/9/org/sqlite/*" 2>/dev/null || true
+        # 将 Feature 类放到 JAR 根路径（org/sqlite/nativeimage/）
+        (cd "$tmp_extract/META-INF/versions/9" && zip -qr "$work_jar" org/sqlite/nativeimage/)
+    fi
+    rm -rf "$tmp_extract"
+
+    native-image -jar "$work_jar" \
+        -o "$OUTPUT_DIR/jindexer" \
         --no-fallback \
         -H:+ReportExceptionStackTraces \
         -H:+UnlockExperimentalVMOptions \
         -H:ConfigurationFileDirectories="$PROJECT_ROOT/src/main/resources/META-INF/native-image"
 
+    rm -f "$work_jar"
+
     local suffix=""
+    local os_type
+    os_type=$(uname -s | tr '[:upper:]' '[:lower:]')
     [[ "$os_type" == "mingw"* || "$os_type" == "msys"* || "$os_type" == "cygwin"* ]] && suffix=".exe"
 
-    # 创建归档
-    local base_name="java-code-indexer-${VERSION}"
-    local native_archive="${OUTPUT_DIR}/${base_name}-${os_type}-${arch_type}-native"
-
-    if [[ "$os_type" == "linux" ]]; then
-        mkdir -p "$OUTPUT_DIR/${base_name}-linux-${arch_type}"
-        mv "$OUTPUT_DIR/$binary_name$suffix" "$OUTPUT_DIR/${base_name}-linux-${arch_type}/"
-        tar -czf "${native_archive}.tar.gz" -C "$OUTPUT_DIR" "${base_name}-linux-${arch_type}"
-        rm -rf "$OUTPUT_DIR/${base_name}-linux-${arch_type}"
-        success "Native Image: ${native_archive}.tar.gz"
-    else
-        mkdir -p "$OUTPUT_DIR/${base_name}-${os_type}-${arch_type}"
-        mv "$OUTPUT_DIR/$binary_name$suffix" "$OUTPUT_DIR/${base_name}-${os_type}-${arch_type}/"
-        tar -czf "${native_archive}.tar.gz" -C "$OUTPUT_DIR" "${base_name}-${os_type}-${arch_type}"
-        rm -rf "$OUTPUT_DIR/${base_name}-${os_type}-${arch_type}"
-        success "Native Image: ${native_archive}.tar.gz"
-    fi
+    success "Native Image: $OUTPUT_DIR/jindexer$suffix"
 }
 
 # ─── Docker 镜像 ──────────────────────────────────────
-build_docker_image() {
-    if [[ "$BUILD_DOCKER" != true ]]; then
+build_and_push_docker() {
+    if [[ "$PUSH_DOCKER" != true ]]; then
         return
     fi
 
-    info "构建 Docker 镜像..."
+    info "构建并推送 Docker 镜像..."
 
-    local image_tag="${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${VERSION}"
+    local full_tag="${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${DOCKER_TAG}"
     local latest_tag="${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:latest"
+    local version_tag="${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${VERSION}"
 
     # 生成临时 Dockerfile
     local tmp_dockerfile="$OUTPUT_DIR/Dockerfile.release"
@@ -342,20 +275,33 @@ DOCKERFILE_EOF
 
     # 复制 JAR 到构建上下文
     local jar_file
-    jar_file=$(find target -name "*-shaded.jar" -not -name "*.original" | head -1)
+    jar_file=$(find "$OUTPUT_DIR" -name "*.jar" -not -name "Dockerfile.release" | head -1)
+    if [[ -z "$jar_file" ]]; then
+        error "未找到 JAR 文件，无法构建 Docker 镜像"
+        return 1
+    fi
     cp "$jar_file" "$OUTPUT_DIR/jindexer.jar"
 
-    docker build -t "$image_tag" -t "$latest_tag" \
+    # 构建镜像
+    docker build -t "$full_tag" -t "$latest_tag" -t "$version_tag" \
         -f "$tmp_dockerfile" "$OUTPUT_DIR"
 
     # 清理临时文件
     rm -f "$tmp_dockerfile" "$OUTPUT_DIR/jindexer.jar"
 
-    # 导出镜像为 tar
-    local docker_archive="$OUTPUT_DIR/${DOCKER_IMAGE_NAME}-${VERSION}-docker.tar.gz"
-    docker save "$image_tag" | gzip > "$docker_archive"
-    success "Docker 镜像: $docker_archive"
-    info "Docker 标签: $image_tag, $latest_tag"
+    # 推送镜像
+    info "推送 $full_tag ..."
+    docker push "$full_tag"
+
+    if [[ "$DOCKER_TAG" != "latest" ]]; then
+        info "推送 $latest_tag ..."
+        docker push "$latest_tag"
+    fi
+
+    info "推送 $version_tag ..."
+    docker push "$version_tag"
+
+    success "Docker 镜像已推送: $full_tag, $latest_tag, $version_tag"
 }
 
 # ─── SHA-256 校验 ──────────────────────────────────────
@@ -363,17 +309,20 @@ generate_checksums() {
     info "生成 SHA-256 校验和..."
 
     cd "$OUTPUT_DIR"
-    local checksum_file="checksums-${VERSION}.sha256"
+    local checksum_file="checksums.sha256"
 
     : > "$checksum_file"
 
-    for f in *.tar.gz *.zip *.jar; do
+    for f in *.jar jindexer*; do
         [[ -f "$f" ]] || continue
+        [[ "$f" == "checksums.sha256" ]] && continue
         sha256sum "$f" >> "$checksum_file"
     done
 
-    success "校验和: $OUTPUT_DIR/$checksum_file"
-    cat "$checksum_file" | sed 's/^/  /'
+    if [[ -s "$checksum_file" ]]; then
+        success "校验和: $OUTPUT_DIR/$checksum_file"
+        cat "$checksum_file" | sed 's/^/  /'
+    fi
 }
 
 # ─── 汇总 ──────────────────────────────────────────────
@@ -385,7 +334,7 @@ print_summary() {
     echo ""
     echo "  产物目录: $OUTPUT_DIR"
     echo ""
-    ls -lh "$OUTPUT_DIR" | grep -v "^total" | grep -v "Dockerfile" | sed 's/^/  /'
+    ls -lh "$OUTPUT_DIR" | grep -v "^total" | sed 's/^/  /'
     echo ""
     echo "═══════════════════════════════════════════════════════════"
 }
@@ -399,21 +348,32 @@ main() {
     check_deps
     resolve_version
 
+    # 如果输出目录是默认值（版本号确定后），使用它
+    if [[ -z "$OUTPUT_DIR" ]]; then
+        OUTPUT_DIR="$PROJECT_ROOT/release/$VERSION"
+    fi
+
+    mkdir -p "$OUTPUT_DIR"
+
     echo ""
     info "版本: $VERSION"
     info "输出目录: $OUTPUT_DIR"
     info "Native Image: $BUILD_NATIVE"
-    info "Docker 镜像: $BUILD_DOCKER"
+    info "Docker Push: $PUSH_DOCKER"
+    if [[ "$PUSH_DOCKER" == true ]]; then
+        info "Docker Registry: $DOCKER_REGISTRY/$DOCKER_IMAGE_NAME"
+    fi
     echo ""
 
     # 构建 Fat JAR
     local jar_file
     jar_file=$(build_fat_jar)
 
-    echo ""
-
-    # 创建归档
-    create_archive "$jar_file"
+    # 复制 JAR 到输出目录
+    local jar_name
+    jar_name=$(basename "$jar_file")
+    cp "$jar_file" "$OUTPUT_DIR/$jar_name"
+    success "JAR 已复制到 $OUTPUT_DIR/$jar_name"
 
     echo ""
 
@@ -422,8 +382,8 @@ main() {
 
     echo ""
 
-    # 构建 Docker 镜像
-    build_docker_image
+    # 构建并推送 Docker 镜像
+    build_and_push_docker
 
     echo ""
 
