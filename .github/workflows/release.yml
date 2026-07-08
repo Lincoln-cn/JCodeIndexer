@@ -153,7 +153,7 @@ jobs:
         run: |
           # sqlite-jdbc 把 GraalVM Feature 放在 META-INF/versions/9/
           # native-image 无法识别，需要提取到根路径
-          JAR=$(find target -maxdepth 1 -name "*.jar" -not -name "original-*" | head 1)
+          JAR=$(find target -maxdepth 1 -name "*.jar" -not -name "original-*" | head -n 1)
           WORK_JAR="target/jindexer-build.jar"
           cp "$JAR" "$WORK_JAR"
 
