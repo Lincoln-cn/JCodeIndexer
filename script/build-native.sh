@@ -27,15 +27,29 @@ echo "Work JAR: $WORK_JAR"
 # Fix sqlite-jdbc multi-release JAR
 # sqlite-jdbc puts GraalVM Feature in META-INF/versions/9/
 # native-image cannot recognize it, need to extract to root path
+echo "Checking sqlite-jdbc multi-release JAR..."
 TMP_EXTRACT=$(mktemp -d)
+echo "Extracting to: $TMP_EXTRACT"
+
+# List sqlite files in JAR
+echo "SQLite files in JAR:"
+unzip -l "$WORK_JAR" 2>/dev/null | grep -i "sqlite" || echo "No sqlite files found"
+
+# Try to extract sqlite files
 unzip -qo "$WORK_JAR" "META-INF/versions/9/org/sqlite/*" -d "$TMP_EXTRACT" 2>/dev/null || true
 
+echo "Extracted directory structure:"
+find "$TMP_EXTRACT" -type f 2>/dev/null || echo "No files extracted"
+
 if [[ -d "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage" ]]; then
-  echo "Fixing sqlite-jdbc multi-release JAR..."
+  echo "Found nativeimage directory, fixing sqlite-jdbc multi-release JAR..."
   # Remove sqlite directory from versions/9
   zip -qd "$WORK_JAR" "META-INF/versions/9/org/sqlite/*" 2>/dev/null || true
   # Add Feature class to JAR root
   (cd "$TMP_EXTRACT/META-INF/versions/9" && zip -qr "$WORK_JAR" org/sqlite/nativeimage/)
+  echo "sqlite-jdbc fix completed"
+else
+  echo "WARNING: nativeimage directory not found, skipping fix"
 fi
 rm -rf "$TMP_EXTRACT"
 
