@@ -189,18 +189,13 @@ jobs:
 
           # Windows 上需要将反斜杠转换为正斜杠
           GRAALVM_HOME_FIXED=$(echo "$GRAALVM_HOME" | sed 's|\\|/|g')
+          export PATH="$GRAALVM_HOME_FIXED/bin:$PATH"
 
-          # Windows 上需要使用完整路径
-          if [[ "${{ matrix.os }}" == "windows" ]]; then
-            NATIVE_IMAGE="${GRAALVM_HOME_FIXED}/bin/native-image.exe"
-          else
-            NATIVE_IMAGE="${GRAALVM_HOME}/bin/native-image"
-          fi
+          echo "GRAALVM_HOME: $GRAALVM_HOME_FIXED"
+          echo "PATH: $PATH"
+          ls -la "$GRAALVM_HOME_FIXED/bin/" | grep -i native
 
-          echo "Using native-image: $NATIVE_IMAGE"
-          ls -la "$NATIVE_IMAGE"
-
-          "$NATIVE_IMAGE" -jar "$WORK_JAR" \
+          native-image -jar "$WORK_JAR" \
             -o "jindexer" \
             --no-fallback \
             -H:+ReportExceptionStackTraces \
