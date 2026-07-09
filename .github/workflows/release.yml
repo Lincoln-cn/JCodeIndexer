@@ -149,10 +149,8 @@ jobs:
           name: shaded-jar
           path: target/
 
-      - name: Debug - List target directory
-        run: ls -la target/
-
       - name: Fix sqlite-jdbc multi-release JAR
+        shell: bash
         run: |
           # sqlite-jdbc 把 GraalVM Feature 放在 META-INF/versions/9/
           # native-image 无法识别，需要提取到根路径
@@ -184,6 +182,7 @@ jobs:
           echo "jindexer-build.jar" > target/jar-name.txt
 
       - name: Build Native Image
+        shell: bash
         run: |
           VERSION="${{ needs.build.outputs.version }}"
           WORK_JAR="target/jindexer-build.jar"
@@ -195,6 +194,7 @@ jobs:
             -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
 
       - name: Package
+        shell: bash
         run: |
           VERSION="${{ needs.build.outputs.version }}"
           ARCH="${{ matrix.arch }}"
