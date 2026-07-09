@@ -149,13 +149,25 @@ jobs:
           name: shaded-jar
           path: target/
 
+      - name: Debug - List target directory
+        run: ls -la target/
+
       - name: Fix sqlite-jdbc multi-release JAR
         run: |
           # sqlite-jdbc 把 GraalVM Feature 放在 META-INF/versions/9/
           # native-image 无法识别，需要提取到根路径
           JAR=$(find target -maxdepth 1 -name "*.jar" -not -name "original-*" | head -n 1)
-          WORK_JAR="target/jindexer-build.jar"
+          echo "Found JAR: $JAR"
+          if [[ -z "$JAR" ]]; then
+            echo "ERROR: No JAR found"
+            ls -la target/
+            exit 1
+          fi
+
+          # 使用绝对路径避免相对路径问题
+          WORK_JAR="$(pwd)/target/jindexer-build.jar"
           cp "$JAR" "$WORK_JAR"
+          ls -la "$WORK_JAR"
 
           # 提取 Feature 类
           TMP_EXTRACT=$(mktemp -d)
