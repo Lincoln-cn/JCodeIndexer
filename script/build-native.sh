@@ -47,10 +47,10 @@ if [[ -d "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage" ]]; then
   rm -rf "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage"
 fi
 
-# Rebuild the JAR
+# Rebuild the JAR preserving the manifest
 echo "Rebuilding JAR..."
 cd "$TMP_EXTRACT"
-jar cf "$WORK_JAR" .
+jar cfm "$WORK_JAR" META-INF/MANIFEST.MF .
 cd - > /dev/null
 
 # Verify the JAR
