@@ -125,7 +125,7 @@ jobs:
             runner: ubuntu-latest
           - os: darwin
             arch: amd64
-            runner: macos-latest
+            runner: macos-13
           - os: darwin
             arch: arm64
             runner: macos-latest
