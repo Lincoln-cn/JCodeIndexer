@@ -193,14 +193,23 @@ jobs:
 
           echo "GRAALVM_HOME: $GRAALVM_HOME_FIXED"
           echo "PATH: $PATH"
-          ls -la "$GRAALVM_HOME_FIXED/bin/" | grep -i native
 
-          native-image -jar "$WORK_JAR" \
-            -o "jindexer" \
-            --no-fallback \
-            -H:+ReportExceptionStackTraces \
-            -H:+UnlockExperimentalVMOptions \
-            -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
+          # Windows 上 GraalVM 使用 .cmd 文件
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            native-image.cmd -jar "$WORK_JAR" \
+              -o "jindexer" \
+              --no-fallback \
+              -H:+ReportExceptionStackTraces \
+              -H:+UnlockExperimentalVMOptions \
+              -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
+          else
+            native-image -jar "$WORK_JAR" \
+              -o "jindexer" \
+              --no-fallback \
+              -H:+ReportExceptionStackTraces \
+              -H:+UnlockExperimentalVMOptions \
+              -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
+          fi
 
       - name: Package
         shell: bash
