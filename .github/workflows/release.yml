@@ -112,7 +112,7 @@ jobs:
   native:
     name: Native Image (${{ matrix.os }}-${{ matrix.arch }})
     needs: build
-    if: ${{ inputs.build_native || startsWith(github.ref, 'refs/tags/v*') }}
+    if: ${{ github.event_name == 'push' || inputs.build_native == true }}
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
