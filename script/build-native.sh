@@ -24,48 +24,39 @@ WORK_JAR="$(pwd)/target/jindexer-build.jar"
 cp "$JAR" "$WORK_JAR"
 echo "Work JAR: $WORK_JAR"
 
-# Fix sqlite-jdbc multi-release JAR
-# sqlite-jdbc puts GraalVM Feature in META-INF/versions/9/
-# native-image cannot recognize it, need to extract to root path
-echo "=== Fixing sqlite-jdbc multi-release JAR ==="
+# Remove sqlite-jdbc native-image configuration that causes issues
+# The SqliteJdbcFeature is in a multi-release JAR that GraalVM can't access
+echo "=== Removing problematic sqlite-jdbc native-image config ==="
 TMP_EXTRACT=$(mktemp -d)
 echo "Temp directory: $TMP_EXTRACT"
 
-# Use jar command to extract (works on all platforms)
-echo "Extracting with jar command..."
+# Extract the JAR
 cd "$TMP_EXTRACT"
-jar xf "$WORK_JAR" META-INF/versions/9/org/sqlite/nativeimage/ 2>/dev/null || true
+jar xf "$WORK_JAR"
 cd - > /dev/null
 
-echo "Extracted files:"
-find "$TMP_EXTRACT" -type f 2>/dev/null || echo "No files extracted"
-
-if [[ -d "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage" ]]; then
-  echo "Found nativeimage directory!"
-
-  # List the extracted files
-  echo "Nativeimage files:"
-  ls -la "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage/"
-
-  # Remove sqlite directory from versions/9 in JAR using jar
-  echo "Removing versions/9/org/sqlite from JAR..."
-  cd "$TMP_EXTRACT/META-INF/versions/9/org/sqlite"
-  jar uf "$WORK_JAR" -C . nativeimage/ 2>/dev/null || true
-  cd - > /dev/null
-
-  # Add Feature class to JAR root using jar
-  echo "Adding nativeimage to JAR root..."
-  cd "$TMP_EXTRACT/META-INF/versions/9"
-  jar uf "$WORK_JAR" org/sqlite/nativeimage/
-  cd - > /dev/null
-
-  echo "=== sqlite-jdbc fix completed ==="
-  echo "Verifying fix:"
-  jar tf "$WORK_JAR" | grep -i "nativeimage" || echo "No nativeimage files found"
-else
-  echo "WARNING: nativeimage directory not found in extracted files"
-  echo "This may indicate the JAR does not contain the multi-release sqlite Feature"
+# Remove the sqlite native-image config
+if [[ -d "$TMP_EXTRACT/META-INF/native-image/org.xerial/sqlite-jdbc" ]]; then
+  echo "Removing sqlite-jdbc native-image configuration..."
+  rm -rf "$TMP_EXTRACT/META-INF/native-image/org.xerial/sqlite-jdbc"
 fi
+
+# Remove multi-release JAR entries that cause issues
+if [[ -d "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage" ]]; then
+  echo "Removing multi-release nativeimage entries..."
+  rm -rf "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage"
+fi
+
+# Rebuild the JAR
+echo "Rebuilding JAR..."
+cd "$TMP_EXTRACT"
+jar cf "$WORK_JAR" .
+cd - > /dev/null
+
+# Verify the JAR
+echo "Verifying JAR..."
+jar tf "$WORK_JAR" | grep -i "nativeimage" || echo "No nativeimage entries found (good)"
+
 rm -rf "$TMP_EXTRACT"
 
 # Convert Windows path for GraalVM
