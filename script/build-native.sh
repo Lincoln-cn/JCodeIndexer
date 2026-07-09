@@ -31,7 +31,7 @@ echo "=== Fixing sqlite-jdbc multi-release JAR ==="
 TMP_EXTRACT=$(mktemp -d)
 echo "Temp directory: $TMP_EXTRACT"
 
-# Use jar command to extract (works better on Windows)
+# Use jar command to extract (works on all platforms)
 echo "Extracting with jar command..."
 cd "$TMP_EXTRACT"
 jar xf "$WORK_JAR" META-INF/versions/9/org/sqlite/nativeimage/ 2>/dev/null || true
@@ -47,19 +47,21 @@ if [[ -d "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage" ]]; then
   echo "Nativeimage files:"
   ls -la "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage/"
 
-  # Remove sqlite directory from versions/9 in JAR
+  # Remove sqlite directory from versions/9 in JAR using jar
   echo "Removing versions/9/org/sqlite from JAR..."
-  zip -qd "$WORK_JAR" "META-INF/versions/9/org/sqlite/*" 2>/dev/null || true
+  cd "$TMP_EXTRACT/META-INF/versions/9/org/sqlite"
+  jar uf "$WORK_JAR" -C . nativeimage/ 2>/dev/null || true
+  cd - > /dev/null
 
-  # Add Feature class to JAR root
+  # Add Feature class to JAR root using jar
   echo "Adding nativeimage to JAR root..."
   cd "$TMP_EXTRACT/META-INF/versions/9"
-  zip -qr "$WORK_JAR" org/sqlite/nativeimage/
+  jar uf "$WORK_JAR" org/sqlite/nativeimage/
   cd - > /dev/null
 
   echo "=== sqlite-jdbc fix completed ==="
   echo "Verifying fix:"
-  zip -l "$WORK_JAR" | grep -i "nativeimage" || echo "No nativeimage files found"
+  jar tf "$WORK_JAR" | grep -i "nativeimage" || echo "No nativeimage files found"
 else
   echo "WARNING: nativeimage directory not found in extracted files"
   echo "This may indicate the JAR does not contain the multi-release sqlite Feature"
