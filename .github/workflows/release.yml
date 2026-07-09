@@ -149,67 +149,11 @@ jobs:
           name: shaded-jar
           path: target/
 
-      - name: Fix sqlite-jdbc multi-release JAR
-        shell: bash
-        run: |
-          # sqlite-jdbc 把 GraalVM Feature 放在 META-INF/versions/9/
-          # native-image 无法识别，需要提取到根路径
-          JAR=$(find target -maxdepth 1 -name "*.jar" -not -name "original-*" | head -n 1)
-          echo "Found JAR: $JAR"
-          if [[ -z "$JAR" ]]; then
-            echo "ERROR: No JAR found"
-            ls -la target/
-            exit 1
-          fi
-
-          # 使用绝对路径避免相对路径问题
-          WORK_JAR="$(pwd)/target/jindexer-build.jar"
-          cp "$JAR" "$WORK_JAR"
-          ls -la "$WORK_JAR"
-
-          # 提取 Feature 类
-          TMP_EXTRACT=$(mktemp -d)
-          unzip -qo "$WORK_JAR" "META-INF/versions/9/org/sqlite/*" -d "$TMP_EXTRACT" 2>/dev/null || true
-
-          if [[ -d "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage" ]]; then
-            echo "Fixing sqlite-jdbc multi-release JAR..."
-            # 从 versions/9 下移除 sqlite 目录
-            zip -qd "$WORK_JAR" "META-INF/versions/9/org/sqlite/*" 2>/dev/null || true
-            # 将 Feature 类放到 JAR 根路径
-            (cd "$TMP_EXTRACT/META-INF/versions/9" && zip -qr "$WORK_JAR" org/sqlite/nativeimage/)
-          fi
-          rm -rf "$TMP_EXTRACT"
-          echo "jindexer-build.jar" > target/jar-name.txt
-
       - name: Build Native Image
         shell: bash
         run: |
-          VERSION="${{ needs.build.outputs.version }}"
-          WORK_JAR="target/jindexer-build.jar"
-
-          # Windows 上需要将反斜杠转换为正斜杠
-          GRAALVM_HOME_FIXED=$(echo "$GRAALVM_HOME" | sed 's|\\|/|g')
-          export PATH="$GRAALVM_HOME_FIXED/bin:$PATH"
-
-          echo "GRAALVM_HOME: $GRAALVM_HOME_FIXED"
-          echo "PATH: $PATH"
-
-          # Windows 上 GraalVM 使用 .cmd 文件
-          if [[ "${{ matrix.os }}" == "windows" ]]; then
-            native-image.cmd -jar "$WORK_JAR" \
-              -o "jindexer" \
-              --no-fallback \
-              -H:+ReportExceptionStackTraces \
-              -H:+UnlockExperimentalVMOptions \
-              -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
-          else
-            native-image -jar "$WORK_JAR" \
-              -o "jindexer" \
-              --no-fallback \
-              -H:+ReportExceptionStackTraces \
-              -H:+UnlockExperimentalVMOptions \
-              -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
-          fi
+          chmod +x script/build-native.sh
+          ./script/build-native.sh "${{ matrix.os }}" "${{ matrix.arch }}" "${{ needs.build.outputs.version }}"
 
       - name: Package
         shell: bash
