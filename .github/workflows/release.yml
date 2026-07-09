@@ -187,12 +187,18 @@ jobs:
           VERSION="${{ needs.build.outputs.version }}"
           WORK_JAR="target/jindexer-build.jar"
 
+          # Windows 上需要将反斜杠转换为正斜杠
+          GRAALVM_HOME_FIXED=$(echo "$GRAALVM_HOME" | sed 's|\\|/|g')
+
           # Windows 上需要使用完整路径
           if [[ "${{ matrix.os }}" == "windows" ]]; then
-            NATIVE_IMAGE="${GRAALVM_HOME}/bin/native-image.exe"
+            NATIVE_IMAGE="${GRAALVM_HOME_FIXED}/bin/native-image.exe"
           else
             NATIVE_IMAGE="${GRAALVM_HOME}/bin/native-image"
           fi
+
+          echo "Using native-image: $NATIVE_IMAGE"
+          ls -la "$NATIVE_IMAGE"
 
           "$NATIVE_IMAGE" -jar "$WORK_JAR" \
             -o "jindexer" \
