@@ -33,12 +33,12 @@ echo "Extracting to: $TMP_EXTRACT"
 
 # List sqlite files in JAR
 echo "SQLite files in JAR:"
-unzip -l "$WORK_JAR" 2>/dev/null | grep -i "sqlite" || echo "No sqlite files found"
+unzip -l "$WORK_JAR" 2>/dev/null | grep -i "nativeimage" || echo "No nativeimage files found"
 
-# Try to extract sqlite files
-unzip -qo "$WORK_JAR" "META-INF/versions/9/org/sqlite/*" -d "$TMP_EXTRACT" 2>/dev/null || true
+# Try to extract the nativeimage directory specifically
+unzip -qo "$WORK_JAR" "META-INF/versions/9/org/sqlite/nativeimage/*" -d "$TMP_EXTRACT" 2>/dev/null || true
 
-echo "Extracted directory structure:"
+echo "Extracted files:"
 find "$TMP_EXTRACT" -type f 2>/dev/null || echo "No files extracted"
 
 if [[ -d "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage" ]]; then
@@ -48,6 +48,9 @@ if [[ -d "$TMP_EXTRACT/META-INF/versions/9/org/sqlite/nativeimage" ]]; then
   # Add Feature class to JAR root
   (cd "$TMP_EXTRACT/META-INF/versions/9" && zip -qr "$WORK_JAR" org/sqlite/nativeimage/)
   echo "sqlite-jdbc fix completed"
+  # Verify the fix
+  echo "Verifying fix - nativeimage files in JAR:"
+  zip -l "$WORK_JAR" | grep -i "nativeimage" || echo "No nativeimage files found after fix"
 else
   echo "WARNING: nativeimage directory not found, skipping fix"
 fi
