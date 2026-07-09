@@ -210,9 +210,9 @@ jobs:
           cp LICENSE "$DIR/" 2>/dev/null || true
           # Windows 使用 zip，其他平台使用 tar.gz
           if [[ "${{ matrix.os }}" == "windows" ]]; then
-            cd dist && zip -r "java-code-indexer-${VERSION}-${OS}-${ARCH}.zip" "$DIR" && cd ..
+            cd dist && zip -r "java-code-indexer-${VERSION}-${OS}-${ARCH}.zip" "$(basename $DIR)" && cd ..
           else
-            tar -czf "dist/java-code-indexer-${VERSION}-${OS}-${ARCH}.tar.gz" -C dist "$DIR"
+            tar -czf "dist/java-code-indexer-${VERSION}-${OS}-${ARCH}.tar.gz" -C dist "$(basename $DIR)"
           fi
           rm -rf "$DIR"
 
