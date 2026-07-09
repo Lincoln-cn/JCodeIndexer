@@ -10,6 +10,10 @@ VERSION="${3:?Usage: $0 <os> <arch> <version>}"
 
 echo "=== Building Native Image for ${OS}-${ARCH} v${VERSION} ==="
 
+# Store the original working directory
+ORIGINAL_DIR="$(pwd)"
+echo "Original directory: $ORIGINAL_DIR"
+
 # Find JAR file
 JAR=$(find target -maxdepth 1 -name "*.jar" -not -name "original-*" | head -n 1)
 if [[ -z "$JAR" ]]; then
@@ -20,7 +24,7 @@ fi
 echo "Found JAR: $JAR"
 
 # Create work JAR with absolute path
-WORK_JAR="$(pwd)/target/jindexer-build.jar"
+WORK_JAR="$ORIGINAL_DIR/target/jindexer-build.jar"
 cp "$JAR" "$WORK_JAR"
 echo "Work JAR: $WORK_JAR"
 
@@ -33,7 +37,7 @@ echo "Temp directory: $TMP_EXTRACT"
 # Extract the JAR
 cd "$TMP_EXTRACT"
 jar xf "$WORK_JAR"
-cd - > /dev/null
+cd "$ORIGINAL_DIR"
 
 # Remove the sqlite native-image config
 if [[ -d "$TMP_EXTRACT/META-INF/native-image/org.xerial/sqlite-jdbc" ]]; then
@@ -51,7 +55,7 @@ fi
 echo "Rebuilding JAR..."
 cd "$TMP_EXTRACT"
 jar cfm "$WORK_JAR" META-INF/MANIFEST.MF .
-cd - > /dev/null
+cd "$ORIGINAL_DIR"
 
 # Verify the JAR
 echo "Verifying JAR..."
@@ -67,6 +71,7 @@ echo ""
 echo "=== Build Configuration ==="
 echo "GRAALVM_HOME: $GRAALVM_HOME_FIXED"
 echo "Java version: $(java -version 2>&1 | head -1)"
+echo "Current directory: $(pwd)"
 
 # Determine native-image command
 if [[ "$OS" == "windows" ]]; then
@@ -85,5 +90,14 @@ echo ""
   -H:+ReportExceptionStackTraces \
   -H:+UnlockExperimentalVMOptions \
   -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
+
+# Verify the output exists
+echo ""
+echo "=== Verifying output ==="
+if [[ "$OS" == "windows" ]]; then
+  ls -la jindexer.exe || echo "WARNING: jindexer.exe not found"
+else
+  ls -la jindexer || echo "WARNING: jindexer not found"
+fi
 
 echo "=== Native Image build completed ==="
