@@ -186,7 +186,15 @@ jobs:
         run: |
           VERSION="${{ needs.build.outputs.version }}"
           WORK_JAR="target/jindexer-build.jar"
-          native-image -jar "$WORK_JAR" \
+
+          # Windows 上需要使用完整路径
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            NATIVE_IMAGE="${GRAALVM_HOME}/bin/native-image.exe"
+          else
+            NATIVE_IMAGE="${GRAALVM_HOME}/bin/native-image"
+          fi
+
+          "$NATIVE_IMAGE" -jar "$WORK_JAR" \
             -o "jindexer" \
             --no-fallback \
             -H:+ReportExceptionStackTraces \
