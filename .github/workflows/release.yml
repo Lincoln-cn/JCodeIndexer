@@ -105,7 +105,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: shaded-jar
-          path: target/*.jar
+          path: target/java-code-indexer-*.jar
           retention-days: 1
 
   # ─── 阶段 2: Native Image 矩阵构建 ───────────────────
@@ -229,7 +229,7 @@ jobs:
   docker:
     name: Docker Image
     needs: build
-    if: inputs.build_docker
+    if: inputs.build_docker || github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
