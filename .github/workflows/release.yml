@@ -120,6 +120,12 @@ jobs:
           - os: linux
             arch: amd64
             runner: ubuntu-latest
+          - os: linux
+            arch: arm64
+            runner: ubuntu-latest
+          - os: darwin
+            arch: amd64
+            runner: macos-latest
           - os: darwin
             arch: arm64
             runner: macos-latest
@@ -129,6 +135,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        if: matrix.os == 'linux' && matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
 
       - name: Setup GraalVM
         uses: graalvm/setup-graalvm@v1
@@ -182,12 +192,22 @@ jobs:
           echo "Working directory: $(pwd)"
 
           # Build native image
-          "$NATIVE_IMAGE" -jar "$WORK_JAR" \
-            -o "jindexer" \
-            --no-fallback \
-            -H:+ReportExceptionStackTraces \
-            -H:+UnlockExperimentalVMOptions \
-            -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
+          if [[ "${{ matrix.os }}" == "linux" && "${{ matrix.arch }}" == "arm64" ]]; then
+            "$NATIVE_IMAGE" -jar "$WORK_JAR" \
+              -o "jindexer" \
+              --no-fallback \
+              --target=linux-aarch64 \
+              -H:+ReportExceptionStackTraces \
+              -H:+UnlockExperimentalVMOptions \
+              -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
+          else
+            "$NATIVE_IMAGE" -jar "$WORK_JAR" \
+              -o "jindexer" \
+              --no-fallback \
+              -H:+ReportExceptionStackTraces \
+              -H:+UnlockExperimentalVMOptions \
+              -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
+          fi
 
           echo "=== Build completed ==="
           echo "Files in current directory:"
@@ -231,6 +251,8 @@ jobs:
     needs: build
     if: inputs.build_docker || github.ref_type == 'tag'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -240,6 +262,22 @@ jobs:
         with:
           name: shaded-jar
           path: target/
+
+      - name: Extract version
+        id: version
+        run: |
+          if [[ -n "${{ inputs.version }}" ]]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            VER=$(grep -oP '<version>\K[^<]+' pom.xml | head -1)
+            if [[ "$VER" == *"-SNAPSHOT" ]]; then
+              HASH=$(git rev-parse --short HEAD)
+              VER="${VER%-SNAPSHOT}-${HASH}"
+            fi
+            echo "version=$VER" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -256,8 +294,7 @@ jobs:
         with:
           images: sodlinken/jcodeindexer
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ steps.version.outputs.version }}
             type=raw,value=latest
 
       - name: Build and push
@@ -272,10 +309,23 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Export offline image
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p dist
+          docker save sodlinken/jcodeindexer:${VERSION} | gzip > dist/docker-image-${VERSION}.tar.gz
+
+      - name: Upload Docker image
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: dist/docker-image-*.tar.gz
+          retention-days: 5
+
   # ─── 阶段 4: 创建 GitHub Release ──────────────────────
   release:
     name: Create Release
-    needs: [build, native]
+    needs: [build, native, docker]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
@@ -310,18 +360,123 @@ jobs:
           VERSION="${{ needs.build.outputs.version }}"
           PREV_TAG=$(git tag -l "v*" --sort=-v:refname | head -2 | tail -1)
 
-          NOTES="## What's Changed"$'\n\n'
+          cat > notes.md << 'HEREDOC'
+          ## 🚀 Java Code Indexer v${VERSION}
+
+          > Java AST-level code indexer with SQLite storage, exposed as an MCP server for AI coding assistants.
+
+          ---
+
+          ### 📊 开发状态
+
+          | 指标 | 状态 |
+          |------|------|
+          | **当前版本** | v${VERSION} |
+          | **开发阶段** | Alpha |
+          | **稳定性** | 核心功能稳定，API 可能调整 |
+          | **Java 版本要求** | 21+ |
+          | **最后更新** | ${GITHUB_SHA::8} |
+
+          ---
+
+          ### ✨ 核心功能
+
+          #### 🔍 代码索引
+          - **符号索引**：类、方法、字段的完整定义和位置
+          - **引用追踪**：符号在整个代码库中的使用位置
+          - **调用图**：方法调用关系（调用者/被调用者）
+          - **增量索引**：基于 SHA-1 哈希的智能跳过未变更文件
+
+          #### 🛠 MCP 工具
+          | 工具 | 功能 |
+          |------|------|
+          | `find_symbol` | 按名称查找符号，支持通配符 |
+          | `find_references` | 查找符号的所有引用位置 |
+          | `get_call_graph` | 方法调用图分析 |
+          | `search_code` | 搜索符号名和代码内容 |
+          | `get_file_info` | 文件详情：符号、代码块、调用关系 |
+          | `search_config` | 搜索配置文件 (YAML/Properties/.env) |
+          | `find_dependencies` | 搜索项目依赖 (Maven/Gradle) |
+
+          #### 📦 分发方式
+          - **Fat JAR**：通用 Java 21+ 运行时
+          - **Native Image**：GraalVM 原生镜像，启动即时
+          - **Docker**：容器化部署，支持多平台
+          - **多平台支持**：Linux (amd64/arm64)、macOS (amd64/arm64)、Windows (amd64)
+
+          ---
+
+          ### 📝 更新日志
+
+          HEREDOC
+
+          # 追加版本号到 notes.md
+          sed -i "s/\${VERSION}/$VERSION/g" notes.md
+
+          # 追加变更历史
           if [[ -n "$PREV_TAG" ]]; then
-            NOTES+="**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ github.ref_name }}"$'\n\n'
-            CHANGES=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" --no-merges)
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ github.ref_name }}" >> notes.md
+            echo "" >> notes.md
+            git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" --no-merges >> notes.md
           else
-            CHANGES=$(git log --pretty=format:"- %s" --no-merges)
+            git log --pretty=format:"- %s" --no-merges >> notes.md
           fi
 
-          NOTES+="$CHANGES"
+          # 追加安装说明
+          cat >> notes.md << 'HEREDOC'
 
+          ---
+
+          ### 📥 安装说明
+
+          #### Fat JAR
+          ```bash
+          java -jar java-code-indexer-${VERSION}.jar --project-root /path/to/project
+          ```
+
+          #### Native Image
+          ```bash
+          # Linux/macOS
+          ./jindexer --project-root /path/to/project --index
+          ./jindexer --project-root /path/to/project
+
+          # Windows
+          jindexer.exe --project-root /path/to/project --index
+          ```
+
+          #### Docker
+          ```bash
+          docker pull sodlinken/jcodeindexer:${VERSION}
+          docker run --rm -v /path/to/project:/project sodlinken/jcodeindexer:${VERSION} --project-root /project --index
+          ```
+
+          #### Docker 离线镜像
+          ```bash
+          # 加载离线镜像
+          docker load < docker-image-${VERSION}.tar.gz
+          docker run --rm -v /path/to/project:/project sodlinken/jcodeindexer:${VERSION} --project-root /project
+          ```
+
+          ---
+
+          ### 🔧 环境变量
+
+          | 变量 | 说明 | 默认值 |
+          |------|------|--------|
+          | `INDEXER_EMBEDDING_ENABLED` | 启用 Embedding API | `false` |
+          | `INDEXER_EMBEDDING_BASE_URL` | Embedding API 端点 | - |
+          | `INDEXER_EMBEDDING_MODEL` | Embedding 模型名称 | - |
+          | `INDEXER_THREADS` | 索引线程数 | `4` |
+          | `INDEXER_LOG_LEVEL` | 日志级别 | `INFO` |
+
+          HEREDOC
+
+          # 替换版本号
+          sed -i "s/\${VERSION}/$VERSION/g" notes.md
+
+          # 输出到 GITHUB_OUTPUT
           echo "notes<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          cat notes.md >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
@@ -339,6 +494,7 @@ jobs:
             dist/java-code-indexer-*-darwin-amd64.tar.gz
             dist/java-code-indexer-*-darwin-arm64.tar.gz
             dist/java-code-indexer-*-windows-amd64.zip
+            dist/docker-image-*.tar.gz
             dist/checksums-*.sha256
           fail_on_unmatched_files: false
         env:
