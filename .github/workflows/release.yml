@@ -120,25 +120,12 @@ jobs:
           - os: linux
             arch: amd64
             runner: ubuntu-latest
-          - os: linux
-            arch: arm64
-            runner: ubuntu-latest
-          - os: darwin
-            arch: amd64
-            runner: macos-latest
           - os: darwin
             arch: arm64
             runner: macos-latest
-          - os: windows
-            arch: amd64
-            runner: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        if: matrix.os == 'linux' && matrix.arch == 'arm64'
-        uses: docker/setup-qemu-action@v3
 
       - name: Setup GraalVM
         uses: graalvm/setup-graalvm@v1
@@ -192,22 +179,12 @@ jobs:
           echo "Working directory: $(pwd)"
 
           # Build native image
-          if [[ "${{ matrix.os }}" == "linux" && "${{ matrix.arch }}" == "arm64" ]]; then
-            "$NATIVE_IMAGE" -jar "$WORK_JAR" \
-              -o "jindexer" \
-              --no-fallback \
-              --target=linux-aarch64 \
-              -H:+ReportExceptionStackTraces \
-              -H:+UnlockExperimentalVMOptions \
-              -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
-          else
-            "$NATIVE_IMAGE" -jar "$WORK_JAR" \
-              -o "jindexer" \
-              --no-fallback \
-              -H:+ReportExceptionStackTraces \
-              -H:+UnlockExperimentalVMOptions \
-              -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
-          fi
+          "$NATIVE_IMAGE" -jar "$WORK_JAR" \
+            -o "jindexer" \
+            --no-fallback \
+            -H:+ReportExceptionStackTraces \
+            -H:+UnlockExperimentalVMOptions \
+            -H:ConfigurationFileDirectories=src/main/resources/META-INF/native-image/com.sodlinken/jcodeindexer
 
           echo "=== Build completed ==="
           echo "Files in current directory:"
@@ -490,10 +467,7 @@ jobs:
           files: |
             dist/java-code-indexer-*.jar
             dist/java-code-indexer-*-linux-amd64.tar.gz
-            dist/java-code-indexer-*-linux-arm64.tar.gz
-            dist/java-code-indexer-*-darwin-amd64.tar.gz
             dist/java-code-indexer-*-darwin-arm64.tar.gz
-            dist/java-code-indexer-*-windows-amd64.zip
             dist/docker-image-*.tar.gz
             dist/checksums-*.sha256
           fail_on_unmatched_files: false
