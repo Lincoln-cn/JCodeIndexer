@@ -26,8 +26,8 @@ AI 编程助手探索一个不熟悉的 Java 项目时：
 **方式一：下载 JAR（推荐）**
 
 ```bash
-# 从 GitHub Releases 下载
-curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-latest.jar
+# 从 GitHub Releases 下载（将 VERSION 替换为实际版本号，如 1.0.0）
+curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION.jar
 ```
 
 **方式二：从源码构建**（需要 Java 21+ 和 Maven 3.8+）
@@ -49,7 +49,7 @@ native-image -jar target/java-code-indexer-*-shaded.jar \
 **方式四：Docker**
 
 ```bash
-docker pull ghcr.io/sodlinken/java-code-indexer:latest
+docker pull sodlinken/jcodeindexer:latest
 ```
 
 ---
@@ -58,10 +58,10 @@ docker pull ghcr.io/sodlinken/java-code-indexer:latest
 
 ```bash
 # 1. 索引你的 Java 项目
-java -jar jindexer.jar --project-root /path/to/your/java-project --index
+java -jar java-code-indexer-VERSION.jar --project-root /path/to/your/java-project --index
 
 # 2. 启动 MCP 服务（stdio，适用于 Claude Code / Qwen Code / Cursor）
-java -jar jindexer.jar --project-root /path/to/your/java-project
+java -jar java-code-indexer-VERSION.jar --project-root /path/to/your/java-project
 ```
 
 完成。你的 AI 助手现在可以直接查询代码库结构，而不需要逐个读取文件。
@@ -71,7 +71,7 @@ java -jar jindexer.jar --project-root /path/to/your/java-project
 ## CLI 参考
 
 ```
-java -jar jindexer.jar [options]
+java -jar java-code-indexer-VERSION.jar [options]
 
 Options:
   --project-root <path>   Java 项目根目录（默认：当前目录）
@@ -140,7 +140,7 @@ embedding:
   "mcpServers": {
     "java-code-indexer": {
       "command": "/path/to/jdk-21/bin/java",
-      "args": ["-jar", "/path/to/jindexer.jar", "--project-root", "/path/to/project"]
+      "args": ["-jar", "/path/to/java-code-indexer-VERSION.jar", "--project-root", "/path/to/project"]
     }
   }
 }
@@ -212,9 +212,19 @@ src/main/java/com/sodlinken/jindexer/
 
 ## 发布方式
 
-产物输出到 `release/<version>/` 目录。
+### GitHub Release
 
-### 一键构建
+发布流程通过 GitHub Actions 自动化，产物包括：
+
+| 产物 | 说明 |
+|------|------|
+| `java-code-indexer-VERSION.jar` | Fat JAR，需 Java 21+ |
+| `java-code-indexer-VERSION-linux-amd64.tar.gz` | Linux amd64 Native Image |
+| `java-code-indexer-VERSION-darwin-arm64.tar.gz` | macOS arm64 Native Image |
+| `docker-image-VERSION.tar.gz` | Docker 离线镜像 |
+| `checksums-VERSION.sha256` | SHA-256 校验和 |
+
+### 本地构建
 
 ```bash
 # 构建 Fat JAR + Native Image
@@ -270,6 +280,22 @@ java -jar target/java-code-indexer-*-shaded.jar \
 
 # 启动 MCP 服务
 java -jar target/java-code-indexer-*-shaded.jar --project-root .
+```
+
+### 发布流程
+
+GitHub Actions 自动化发布流程：
+
+1. 推送 `v*` 标签或手动触发
+2. 构建 Fat JAR
+3. 构建 Native Image（Linux amd64, macOS arm64）
+4. 构建 Docker 镜像
+5. 创建 GitHub Release 并上传产物
+
+```bash
+# 创建发布标签
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 ## 贡献

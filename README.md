@@ -26,8 +26,8 @@ Requires **Java 21+** (JRE or JDK). Docker and Native Image options bundle the r
 **Option 1: Download JAR (recommended)**
 
 ```bash
-# Download from GitHub Releases
-curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-latest.jar
+# Download from GitHub Releases (replace VERSION with actual version, e.g. 1.0.0)
+curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION.jar
 ```
 
 **Option 2: Build from source** (requires Java 21+ and Maven 3.8+)
@@ -49,7 +49,7 @@ native-image -jar target/java-code-indexer-*-shaded.jar \
 **Option 4: Docker**
 
 ```bash
-docker pull ghcr.io/sodlinken/java-code-indexer:latest
+docker pull sodlinken/jcodeindexer:latest
 ```
 
 ---
@@ -58,10 +58,10 @@ docker pull ghcr.io/sodlinken/java-code-indexer:latest
 
 ```bash
 # 1. Index your Java project
-java -jar jindexer.jar --project-root /path/to/your/java-project --index
+java -jar java-code-indexer-VERSION.jar --project-root /path/to/your/java-project --index
 
 # 2. Start the MCP server (stdio, for Claude Code / Qwen Code / Cursor)
-java -jar jindexer.jar --project-root /path/to/your/java-project
+java -jar java-code-indexer-VERSION.jar --project-root /path/to/your/java-project
 ```
 
 That's it. Your AI assistant can now query your codebase structure instead of reading files.
@@ -71,7 +71,7 @@ That's it. Your AI assistant can now query your codebase structure instead of re
 ## CLI Reference
 
 ```
-java -jar jindexer.jar [options]
+java -jar java-code-indexer-VERSION.jar [options]
 
 Options:
   --project-root <path>   Java project root directory (default: current dir)
@@ -140,7 +140,7 @@ Add to your MCP configuration:
   "mcpServers": {
     "java-code-indexer": {
       "command": "/path/to/jdk-21/bin/java",
-      "args": ["-jar", "/path/to/jindexer.jar", "--project-root", "/path/to/project"]
+      "args": ["-jar", "/path/to/java-code-indexer-VERSION.jar", "--project-root", "/path/to/project"]
     }
   }
 }
@@ -212,9 +212,19 @@ src/main/java/com/sodlinken/jindexer/
 
 ## Distribution
 
-产物输出到 `release/<version>/` 目录。
+### GitHub Release
 
-### 一键构建
+发布流程通过 GitHub Actions 自动化，产物包括：
+
+| 产物 | 说明 |
+|------|------|
+| `java-code-indexer-VERSION.jar` | Fat JAR，需 Java 21+ |
+| `java-code-indexer-VERSION-linux-amd64.tar.gz` | Linux amd64 Native Image |
+| `java-code-indexer-VERSION-darwin-arm64.tar.gz` | macOS arm64 Native Image |
+| `docker-image-VERSION.tar.gz` | Docker 离线镜像 |
+| `checksums-VERSION.sha256` | SHA-256 校验和 |
+
+### 本地构建
 
 ```bash
 # 构建 Fat JAR + Native Image
@@ -270,6 +280,22 @@ java -jar target/java-code-indexer-*-shaded.jar \
 
 # Start MCP server
 java -jar target/java-code-indexer-*-shaded.jar --project-root .
+```
+
+### Release Workflow
+
+GitHub Actions 自动化发布流程：
+
+1. 推送 `v*` 标签或手动触发
+2. 构建 Fat JAR
+3. 构建 Native Image（Linux amd64, macOS arm64）
+4. 构建 Docker 镜像
+5. 创建 GitHub Release 并上传产物
+
+```bash
+# 创建发布标签
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 ## Contributing
