@@ -30,6 +30,7 @@ public class PomParser {
 
         Map<String, String> properties = extractProperties(doc);
         String parentVersion = extractParentVersion(doc);
+        String projectVersion = extractProjectVersion(doc);
         String projectGroupId = extractProjectGroupId(doc);
         String projectArtifactId = extractProjectArtifactId(doc);
 
@@ -50,7 +51,7 @@ public class PomParser {
             String classifier = getChildText(dep, "classifier");
 
             // 解析变量引用
-            version = resolveVariable(version, properties, parentVersion, projectGroupId, projectArtifactId);
+            version = resolveVariable(version, properties, parentVersion, projectVersion, projectGroupId, projectArtifactId);
             if (scope == null || scope.isEmpty()) scope = "compile";
 
             if (artifactId != null && !artifactId.isEmpty()) {
@@ -99,6 +100,22 @@ public class PomParser {
         return null;
     }
 
+    private String extractProjectVersion(Document doc) {
+        NodeList versionNodes = doc.getElementsByTagName("version");
+        for (int i = 0; i < versionNodes.getLength(); i++) {
+            Node node = versionNodes.item(i);
+            Node parent = node.getParentNode();
+            // 排除 <parent> 内的 version
+            if (parent != null && parent.getParentNode() != null
+                && "parent".equals(parent.getParentNode().getNodeName())) {
+                continue;
+            }
+            String val = node.getTextContent().trim();
+            if (!val.isEmpty()) return val;
+        }
+        return null;
+    }
+
     private String extractProjectGroupId(Document doc) {
         // 优先取 <groupId>（非 parent 内的）
         NodeList groupNodes = doc.getElementsByTagName("groupId");
@@ -132,12 +149,13 @@ public class PomParser {
     }
 
     private String resolveVariable(String value, Map<String, String> properties,
-                                   String parentVersion, String projectGroupId, String projectArtifactId) {
+                                   String parentVersion, String projectVersion,
+                                   String projectGroupId, String projectArtifactId) {
         if (value == null) return null;
 
-        // 处理 ${project.version}
+        // 处理 ${project.version} - 优先使用项目自身版本
         if ("${project.version}".equals(value) || "${pom.version}".equals(value)) {
-            return parentVersion;
+            return projectVersion != null ? projectVersion : parentVersion;
         }
 
         // 处理 ${project.groupId}

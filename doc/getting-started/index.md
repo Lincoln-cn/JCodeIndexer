@@ -14,17 +14,12 @@ java -jar target/java-code-indexer-*-shaded.jar --project-root /path/to/project
 
 ## 配置
 
-创建 `config.yaml`：
+创建 `.jindexer/config.yaml`（可选）：
 
 ```yaml
-projects:
-  - name: my-project
-    path: /path/to/project
-    language: JAVA
-    data_dir: ~/.java-code-indexer-data/my-project
-
-embedding:
-  enabled: false
+project_root: /path/to/project
+data_dir: .jindexer
+threads: 4
 ```
 
 ## 初始化索引
@@ -32,10 +27,20 @@ embedding:
 ```bash
 java -jar target/java-code-indexer-*-shaded.jar \
   --project-root /path/to/project \
+  --init
+```
+
+## 运行索引
+
+```bash
+java -jar target/java-code-indexer-*-shaded.jar \
+  --project-root /path/to/project \
   --index
 ```
 
-## 在 Qwen Code 中使用
+## 在 AI 助手中使用
+
+### Qwen Code / Claude Desktop / Cursor
 
 在 MCP 配置中添加 server：
 
@@ -48,4 +53,15 @@ java -jar target/java-code-indexer-*-shaded.jar \
     }
   }
 }
+```
+
+## 多项目模式
+
+```yaml
+# .jindexer/config.yaml
+projects:
+  - name: backend
+    root: /path/to/backend
+  - name: frontend
+    root: /path/to/frontend
 ```

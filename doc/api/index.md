@@ -11,7 +11,6 @@
 | `get_file_info` | 获取指定文件的符号/代码块/调用信息 |
 | `search_config` | 搜索配置文件中的 key-value |
 | `find_dependencies` | 查找项目依赖（Maven POM / Gradle） |
-| `semantic_search` | 语义搜索（需启用 Embedding） |
 | `list_projects` | 列出所有已索引的项目（多项目模式） |
 
 ---
@@ -202,7 +201,7 @@
 
 ### find_dependencies
 
-查找项目依赖（Maven POM / Gradle）。
+查找项目依赖（Maven POM / Gradle）。使用 `*` 通配符可返回所有依赖。
 
 **参数：**
 - `query` (string, 必填) — 搜索关键词（匹配 artifactId / groupId / version）
@@ -228,28 +227,6 @@
   ],
   "total": 1
 }
-```
-
----
-
-### semantic_search
-
-语义搜索：基于向量嵌入的自然语言搜索。需要在配置中启用 Embedding。
-
-**参数：**
-- `query` (string, 必填) — 自然语言查询
-- `limit` (integer, 可选) — 最大返回数，默认 10
-- `project` (string, 可选) — 目标项目名称
-
-**前置条件：**
-```yaml
-# .jindexer/config.yaml
-embedding:
-  enabled: true
-  api_url: "https://api.openai.com/v1"  # 或 Ollama: "http://localhost:11434"
-  api_key: "sk-..."                       # Ollama 无需此项
-  api_type: "openai"                      # 或 "ollama"
-  model: "text-embedding-3-small"
 ```
 
 ---

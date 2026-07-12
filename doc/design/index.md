@@ -9,12 +9,12 @@ AI 助手 (Qwen Code / Claude / Cursor)
 ┌─────────────────────────────────────────┐
 │              McpServer                  │
 │  ┌──────────────────────────────────┐   │
-│  │  ToolDispatcher (9 tools)        │   │
+│  │  ToolDispatcher (8 tools)        │   │
 │  │  find_symbol | find_references   │   │
 │  │  get_call_graph | search_code    │   │
 │  │  get_file_info | search_config   │   │
 │  │  find_dependencies               │   │
-│  │  semantic_search | list_projects │   │
+│  │  list_projects                   │   │
 │  └──────────────────────────────────┘   │
 ├─────────────────────────────────────────┤
 │  SearchProvider                         │
@@ -108,9 +108,6 @@ SQLite 数据库（WAL 模式），9 张核心表：
 | `sha1` | TEXT | 内容 SHA-1 哈希 |
 | `last_indexed_at` | INTEGER | 上次索引时间戳 |
 
-### embedding_cache / embedding_failures
-向量嵌入缓存和失败记录（语义搜索使用，向量由 JVector 索引管理）。
-
 ### config_entries
 配置文件中的 key-value 对（YAML / Properties / .env）。
 
@@ -126,7 +123,6 @@ SQLite 数据库（WAL 模式），9 张核心表：
 3. **删除过期**：移除已不存在的文件数据
 4. **并行解析**：Virtual Threads 并行解析变更文件
 5. **Diff 更新**：按 qualifiedName+kind 做符号 diff，仅增删变化项
-6. **Embedding**（可选）：为新代码块生成向量嵌入
 
 ### Diff 策略
 
