@@ -4,10 +4,35 @@
 
 | 版本 | 主题 | 目标 | 状态 |
 |------|------|------|------|
-| v0.3.1 | 安全修复 + 性能优化 | 安全漏洞修复，SHA-1 缓存 | ✅ 已完成 |
-| v0.4.0 | FTS5 + CLI + 性能优化 | 全文搜索，CLI 命令，引用解析优化 | ✅ 已完成 |
+| v0.3.0 | 核心 bug 修复 | find_references/find_dependencies/get_file_info 修复 | ✅ 已完成 |
+| v0.3.1 | 安全修复 + 性能优化 | SnakeYAML SafeConstructor, SHA-1 缓存, PomParser findLineNumber | ✅ 已完成 |
+| v0.4.0 | FTS5 + CLI + 性能优化 | 全文搜索, CLI 命令, 引用解析优化 | ✅ 已完成 |
 | v0.5.0 | 测试完善 + 代码质量 | 测试覆盖率提升 + 重构 | ⏳ 待开发 |
 | v1.0.0 | 稳定版发布 | 生产就绪 | ⏳ 待开发 |
+
+---
+
+## v0.3.0 — 核心 bug 修复 (已完成)
+
+### 修复内容
+
+| Bug | 根因 | 修复文件 |
+|-----|------|---------|
+| find_references 返回 0 | 引用 symbol_id=0 被跳过 | Indexer.java |
+| find_dependencies 通配符失败 | NULL 值导致 LIKE 返回 NULL | StorageService.java |
+| get_file_info 返回 0 | Windows 路径 `\` vs `/` 不匹配 | Indexer.java, StorageService.java |
+
+---
+
+## v0.3.1 — 安全修复 + 性能优化 (已完成)
+
+### 修复内容
+
+| 修复 | 说明 | 文件 |
+|------|------|------|
+| SnakeYAML 安全漏洞 | 使用 SafeConstructor 防止反序列化攻击 | ConfigLoader.java, ConfigFileParser.java |
+| PomParser findLineNumber | 正确读取文件定位行号 | PomParser.java |
+| SHA-1 缓存 | 避免重复计算 | Indexer.java |
 
 ---
 
@@ -15,18 +40,16 @@
 
 ### 已实现功能
 
-| 功能 | 状态 | 说明 |
+| 功能 | 说明 | 文件 |
 |------|------|------|
-| FTS5 虚拟表 | ✅ | symbols_fts, chunks_fts |
-| 触发器自动同步 | ✅ | INSERT/UPDATE/DELETE 自动维护 |
-| 布尔搜索 | ✅ | `Config AND Loader` |
-| 前缀搜索 | ✅ | `Mcp*` |
-| 短语搜索 | ✅ | `"import java"` |
-| 降级兼容 | ✅ | FTS5 失败时降级到 LIKE |
-| --version | ✅ | 显示版本号 |
-| --status | ✅ | 显示索引统计 |
-| --search | ✅ | 直接搜索 |
-| Indexer 性能优化 | ✅ | 逐条查询替代全量加载 |
+| FTS5 全文搜索 | symbols_fts, chunks_fts + 触发器自动同步 | Schema.java, StorageService.java, StructuredSearch.java |
+| 布尔搜索 | `Config AND Loader` | StorageService.java |
+| 前缀搜索 | `Mcp*` | StorageService.java |
+| 短语搜索 | `"import java"` | StorageService.java |
+| --version | 显示版本号 | CliMain.java |
+| --status | 显示索引统计 (符号/引用/调用/块/文件/配置/依赖) | CliMain.java |
+| --search | 直接搜索，无需启动 MCP | CliMain.java |
+| Indexer 引用解析优化 | 逐条查询替代全量加载 | Indexer.java, StorageService.java |
 
 ### 性能对比
 
@@ -35,44 +58,13 @@
 | 1000 文件搜索 | ~50ms | ~6ms | 8x |
 | 10000 文件搜索 | ~500ms | ~10ms | 50x |
 
-### 修改文件
+### 新增测试
 
-- `Schema.java` — FTS5 表 + 触发器
-- `StorageService.java` — FTS 搜索方法
-- `StructuredSearch.java` — 优先使用 FTS5
-
----
-
-## v0.4.1 — CLI 增强 (待开发)
-
-**预计周期**: 1-2 天
-
-### 新增命令
-
-| 命令 | 说明 | 优先级 |
-|------|------|--------|
-| `--version` | 显示版本号 | P1 |
-| `--status` | 显示索引统计信息 | P1 |
-| `--rebuild` | 强制全量重建索引 | P2 |
-| `--search <query>` | 直接搜索，无需启动 MCP | P2 |
-
-### 修改文件
-
-- `CliMain.java` — 添加新命令处理
-
----
-
-## v0.4.2 — 性能优化 (待开发)
-
-**预计周期**: 1-2 天
-
-### 优化项
-
-| 优化 | 说明 | 优先级 |
-|------|------|--------|
-| Indexer 引用解析 | 避免 `listAllSymbols(10000)` 全量加载 | P0 |
-| DatabaseManager 线程安全 | `synchronized` 序列化所有写操作 | P0 |
-| McpServer 错误处理 | `send()` 吞异常 | P1 |
+| 测试类 | 测试数 | 覆盖 |
+|--------|--------|------|
+| PomParserTest | 5 | 解析、dependencyManagement、变量、${project.version}、isPomFile |
+| StructuredSearchTest | 5 | FTS5 搜索、通配符、无结果、限制、计时 |
+| StorageServiceTest (扩展) | +12 | 符号/引用/调用/块/配置/依赖/文件元信息/统计 |
 
 ---
 
@@ -101,14 +93,15 @@
 ## 版本时间线
 
 ```
-v0.3.1 (2026-07-12) ── 安全修复 + 性能优化 ✅
+v0.3.0 (2026-07-12) ── 核心 bug 修复 ✅
     │
-    ├── v0.4.0 (2026-07-12) ── FTS5 + CLI + 性能优化 ✅
-    │   ├── FTS5 虚拟表 + 触发器
-    │   ├── 布尔搜索 + 前缀搜索
-    │   ├── --version, --status, --search
+    v0.3.1 (2026-07-12) ── 安全修复 + 性能优化 ✅
+    │
+    v0.4.0 (2026-07-12) ── FTS5 + CLI + 性能优化 ✅
+    │   ├── FTS5 全文搜索 (布尔/前缀/短语)
+    │   ├── CLI (--version/--status/--search)
     │   ├── Indexer 引用解析优化
-    │   └── 性能提升 10-100x
+    │   └── 38 个单元测试
     │
     └── v0.5.0 (预计 2026-07-26) ── 测试完善 + 代码质量
         ├── Chunker 单元测试
@@ -127,18 +120,9 @@ v1.0.0 (预计 2026-08-09) ── 生产稳定版发布
 ### v0.4.0 ✅
 - [x] FTS5 搜索在 1000+ 文件项目中 < 10ms
 - [x] 布尔搜索正常工作
-- [x] 所有现有测试通过
-- [x] 38+ 单元测试
-
-### v0.4.1
-- [ ] `--version` 输出正确版本号
-- [ ] `--status` 显示正确的索引统计
-- [ ] `--search` 能直接搜索并返回结果
-
-### v0.4.2
-- [ ] Indexer 引用解析不全量加载
-- [ ] DatabaseManager 支持并发写入
-- [ ] McpServer send() 不吞异常
+- [x] --version / --status / --search 正常
+- [x] Indexer 引用解析不全量加载
+- [x] 38 个单元测试通过
 
 ### v0.5.0
 - [ ] ChunkerTest 覆盖所有切分场景

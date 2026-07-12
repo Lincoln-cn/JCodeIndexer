@@ -78,6 +78,9 @@ Options:
   --data-dir <path>       Index data directory (default: .jindexer)
   --init                  Initialize database schema only
   --index                 Run indexer (extract symbols/references/calls)
+  --status                Show index statistics
+  --search <query>        Search directly (no MCP server needed)
+  --version               Show version number
   --help, -h              Show help
 
 No flags → start MCP server over stdio.
@@ -173,16 +176,21 @@ Add to your MCP configuration:
 4. POM/Gradle parsers extract dependency information
 5. Config parsers extract YAML/Properties/.env entries
 6. All data upserted into embedded SQLite (WAL mode)
+7. FTS5 full-text search indexes auto-synced via triggers
 
 ### Database Schema
 
-Five core tables:
+Seven core tables:
 
 - **`symbols`** — classes, methods, fields with location and signatures
 - **`references`** — symbol usage locations across the codebase
 - **`calls`** — method call relationships (caller → callee)
 - **`chunks`** — code slices at class/method granularity
-- **`file_hashes`** — SHA-1 hashes for incremental indexing
+- **`file_meta`** — SHA-1 hashes for incremental indexing
+- **`config_entries`** — YAML/Properties/.env key-value pairs
+- **`dependencies`** — Maven/Gradle dependency declarations
+
+Plus FTS5 full-text search tables (`symbols_fts`, `chunks_fts`) with auto-sync triggers.
 
 ---
 
@@ -193,11 +201,11 @@ src/main/java/com/sodlinken/jindexer/
 ├── cli/          # CLI entry point
 ├── mcp/          # MCP server (JSON-RPC over stdio)
 ├── config/       # YAML config loader
-├── storage/      # SQLite schema & StorageService
+├── storage/      # SQLite schema & StorageService (including FTS5)
 ├── indexer/      # Incremental indexing engine
 ├── parser/       # Java, POM, Gradle, Config parsers
 ├── chunker/      # Code chunking (class/method slices)
-├── search/       # Structured search provider
+├── search/       # Structured search (FTS5 full-text)
 ├── model/        # Data models (Symbol, Call, Chunk, etc.)
 └── util/         # SHA-1 hashing utility
 ```

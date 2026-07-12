@@ -78,6 +78,9 @@ Options:
   --data-dir <path>       索引数据目录（默认：.jindexer）
   --init                  仅初始化数据库 schema
   --index                 运行索引器（提取符号/引用/调用关系）
+  --status                显示索引统计信息
+  --search <query>        直接搜索（无需启动 MCP 服务）
+  --version               显示版本号
   --help, -h              显示帮助
 
 不带参数 → 启动 MCP 服务（stdio）。
@@ -173,16 +176,21 @@ threads: 4
 4. POM/Gradle 解析器提取依赖信息
 5. 配置解析器提取 YAML/Properties/.env 条目
 6. 所有数据 upsert 到嵌入式 SQLite（WAL 模式）
+7. FTS5 全文搜索索引通过触发器自动同步
 
 ### 数据库 Schema
 
-五张核心表：
+七张核心表：
 
 - **`symbols`** — 类、方法、字段，含位置和签名
 - **`references`** — 符号在整个代码库中的使用位置
 - **`calls`** — 方法调用关系（调用者 → 被调用者）
 - **`chunks`** — 类/方法粒度的代码切片
-- **`file_hashes`** — 用于增量索引的 SHA-1 哈希
+- **`file_meta`** — 用于增量索引的 SHA-1 哈希
+- **`config_entries`** — YAML/Properties/.env 配置条目
+- **`dependencies`** — Maven/Gradle 依赖声明
+
+另外还有 FTS5 全文搜索表（`symbols_fts`、`chunks_fts`），通过触发器自动同步。
 
 ---
 
@@ -193,11 +201,11 @@ src/main/java/com/sodlinken/jindexer/
 ├── cli/          # CLI 入口
 ├── mcp/          # MCP 服务 (JSON-RPC over stdio)
 ├── config/       # YAML 配置加载器
-├── storage/      # SQLite schema 和 StorageService
+├── storage/      # SQLite schema 和 StorageService（含 FTS5）
 ├── indexer/      # 增量索引引擎
 ├── parser/       # Java、POM、Gradle、Config 解析器
 ├── chunker/      # 代码切片（类/方法级别）
-├── search/       # 结构化搜索提供者
+├── search/       # 结构化搜索（FTS5 全文搜索）
 ├── model/        # 数据模型 (Symbol, Call, Chunk 等)
 └── util/         # SHA-1 哈希工具
 ```
