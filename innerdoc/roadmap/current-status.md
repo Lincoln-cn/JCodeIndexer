@@ -14,55 +14,36 @@
 
 #### MCP 工具 (8 个)
 
-| 工具 | 状态 | FTS5 |
-|------|------|------|
-| find_symbol | ✅ 正常 | ✓ |
-| find_references | ✅ 正常 | — |
-| get_call_graph | ✅ 正常 | — |
-| search_code | ✅ 正常 | ✓ |
-| get_file_info | ✅ 正常 | — |
-| search_config | ✅ 正常 | — |
-| find_dependencies | ✅ 正常 | — |
-| list_projects | ✅ 正常 | — |
+| 工具 | 状态 | FTS5 | 测试 |
+|------|------|------|------|
+| find_symbol | ✅ | ✓ | ✓ |
+| find_references | ✅ | — | ✓ |
+| get_call_graph | ✅ | — | ✓ |
+| search_code | ✅ | ✓ | ✓ |
+| get_file_info | ✅ | — | ✓ |
+| search_config | ✅ | — | ✓ |
+| find_dependencies | ✅ | — | ✓ |
+| list_projects | ✅ | — | ✓ |
 
 #### CLI 命令
 
 | 命令 | 状态 |
 |------|------|
-| --init | ✅ 正常 |
-| --index | ✅ 正常 |
-| --status | ✅ 正常 (v0.4.0 新增) |
-| --search | ✅ 正常 (v0.4.0 新增) |
-| --version | ✅ 正常 (v0.4.0 新增) |
-
-#### 核心模块
-
-| 模块 | 状态 | 测试 |
-|------|------|------|
-| Config/ConfigLoader | ✅ 正常 | ✅ 11 tests |
-| StorageService | ✅ 正常 | ✅ 17 tests |
-| PomParser | ✅ 正常 | ✅ 5 tests |
-| StructuredSearch (FTS5) | ✅ 正常 | ✅ 5 tests |
-| McpServer | ✅ 正常 | ⚠️ 仅 E2E |
-| Indexer | ✅ 正常 | ❌ 无测试 |
-| Chunker | ✅ 正常 | ❌ 无测试 |
-| JavaParserAdapter | ✅ 正常 | ❌ 无测试 |
-
-### 已修复的问题
-
-| 问题 | 修复版本 |
-|------|---------|
-| find_references 返回 0 | v0.3.0 |
-| find_dependencies 通配符失败 | v0.3.0 |
-| get_file_info 路径不匹配 | v0.3.0 |
-| SnakeYAML 安全漏洞 | v0.3.1 |
-| PomParser findLineNumber | v0.3.1 |
-| SHA-1 重复计算 | v0.3.1 |
-| FTS5 布尔搜索 | v0.4.0 |
-| Indexer 全量加载符号 | v0.4.0 |
+| --init | ✅ |
+| --index | ✅ |
+| --status | ✅ (v0.4.0) |
+| --search | ✅ (v0.4.0) |
+| --version | ✅ (v0.4.0) |
 
 ### 测试统计
 
 - 单元测试: 38 个
-- E2E 测试: 1 个（非 JUnit）
 - 测试通过率: 100%
+- 覆盖模块: Config (11), Storage (17), Parser (5), Search (5)
+
+### 下一步
+
+- v0.5.0: 测试完善 + 代码质量 (Chunker/JavaParserAdapter 测试, SignatureBuilder, Config record)
+- v0.6.0: 健壮性 + 错误处理 (配置校验, 索引恢复, 并发保护)
+- v0.7.0: 开发者体验 (监控模式, 健康检查)
+- v1.0.0: 生产稳定版发布
