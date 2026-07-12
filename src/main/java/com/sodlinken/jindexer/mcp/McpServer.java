@@ -49,11 +49,6 @@ public class McpServer {
                 projConfig.setFollowSymlinks(config.isFollowSymlinks());
                 projConfig.setMaxFileSizeKB(config.getMaxFileSizeKB());
                 projConfig.setIndexingThreads(config.getIndexingThreads());
-                projConfig.setEmbeddingEnabled(config.isEmbeddingEnabled());
-                projConfig.setEmbeddingApiUrl(config.getEmbeddingApiUrl());
-                projConfig.setEmbeddingApiKey(config.getEmbeddingApiKey());
-                projConfig.setEmbeddingModel(config.getEmbeddingModel());
-                projConfig.setEmbeddingBatchSize(config.getEmbeddingBatchSize());
                 log.info("加载项目 {}: root={}, dbPath={}", proj.name(), proj.root(), projConfig.getDbPath());
                 projects.put(proj.name(), ProjectContext.create(projConfig));
             }
@@ -268,13 +263,7 @@ public class McpServer {
         if (multiProject) fileInfoParams.put("project", projectParam);
         toolsArray.add(createTool("get_file_info", "获取指定文件的符号/代码块/调用信息", fileInfoParams));
 
-        // 7. semantic_search
-        Map<String, Object> semanticParams = new LinkedHashMap<>();
-        semanticParams.put("query", Map.of("type", "string", "description", "自然语言查询"));
-        if (multiProject) semanticParams.put("project", projectParam);
-        toolsArray.add(createTool("semantic_search", "语义搜索（需要 Embedding 配置，当前未启用）", semanticParams));
-
-        // 8. search_config
+        // 7. search_config
         Map<String, Object> searchConfigParams = new LinkedHashMap<>();
         searchConfigParams.put("query", Map.of("type", "string", "description", "搜索关键词（匹配 key/value/content）"));
         searchConfigParams.put("config_type", Map.of("type", "string", "description", "配置类型过滤: YAML | PROPERTIES | ENV"));
@@ -307,7 +296,6 @@ public class McpServer {
                 case "get_call_graph" -> callGetCallGraph(arguments);
                 case "search_code" -> callSearchCode(arguments);
                 case "get_file_info" -> callGetFileInfo(arguments);
-                case "semantic_search" -> callSemanticSearch(arguments);
                 case "search_config" -> callSearchConfig(arguments);
                 case "find_dependencies" -> callFindDependencies(arguments);
                 default -> Map.of("error", "Unknown tool: " + toolName);
@@ -457,6 +445,9 @@ public class McpServer {
         ProjectContext ctx = resolveProject(args);
         StorageService storage = ctx.storage();
         String filePath = args.get("file_path").getAsString();
+        
+        // 统一路径分隔符为正斜杠
+        filePath = filePath.replace("\\", "/");
 
         var symbols = storage.findSymbolsByFile(filePath);
         var chunks = storage.findChunksByFile(filePath);
@@ -477,14 +468,6 @@ public class McpServer {
                 "name", c.name() != null ? c.name() : "",
                 "line", c.startLine()
             )).toList()
-        );
-    }
-
-    private Map<String, Object> callSemanticSearch(JsonObject args) {
-        return Map.of(
-            "project", resolveProjectName(args),
-            "error", "语义搜索尚未启用。请在 config.yaml 中配置 embedding 并重启服务。",
-            "hint", "设置 embedding.enabled=true 并配置 embedding.api_url 和 embedding.api_key"
         );
     }
 

@@ -1,10 +1,35 @@
 #!/usr/bin/env python3
 """MCP Server end-to-end test (CLI-based, no index_project tool)."""
-import subprocess, sys, json, time, os, threading
+import subprocess, sys, json, time, os, threading, glob, shutil
 
-JAR = "/home/ubuntu/jairouter/mcp/java-code-indexer/target/java-code-indexer-1.0.0-SNAPSHOT.jar"
-JAVA = "/usr/lib/jvm/java-21-openjdk-amd64/bin/java"
-PROJECT_ROOT = "/home/ubuntu/jairouter/mcp/java-code-indexer"
+# Configurable paths via environment variables
+JAR = os.environ.get("JAR_PATH")
+JAVA = os.environ.get("JAVA_HOME")
+PROJECT_ROOT = os.environ.get("PROJECT_ROOT")
+
+# Auto-detect JAR if not set
+if not JAR:
+    candidates = glob.glob("target/java-code-indexer-*-shaded.jar")
+    if candidates:
+        JAR = candidates[0]
+    else:
+        candidates = glob.glob("target/java-code-indexer-*.jar")
+        JAR = candidates[0] if candidates else None
+
+# Auto-detect Java if not set
+if not JAVA:
+    JAVA = shutil.which("java")
+
+# Auto-detect project root if not set
+if not PROJECT_ROOT:
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+if not JAR:
+    print("ERROR: JAR not found. Set JAR_PATH env var or build the project first.")
+    sys.exit(1)
+if not JAVA:
+    print("ERROR: Java not found. Set JAVA_HOME env var or ensure java is in PATH.")
+    sys.exit(1)
 
 
 def make_frame(obj):
@@ -100,7 +125,7 @@ def main():
     tool_names = [t["name"] for t in tools]
     print(f"    tools: {tool_names}")
     expected = ["find_symbol", "find_references", "get_call_graph",
-                "search_code", "get_file_info", "semantic_search"]
+                "search_code", "get_file_info"]
     for name in expected:
         if name not in tool_names:
             errors.append(f"tools/list: missing tool '{name}'")
@@ -171,15 +196,6 @@ def main():
     else:
         print(f"    ERROR: {err}")
         errors.append(f"get_file_info: {err}")
-
-    # 9. semantic_search (expect placeholder)
-    print("\n[9] semantic_search (expect placeholder)")
-    result, err = call_tool(proc, "semantic_search", {"query": "test"}, next_id())
-    if result and result.get("error"):
-        print(f"    placeholder: {result['error'][:60]}")
-    else:
-        print(f"    ERROR: unexpected response: {result}")
-        errors.append("semantic_search: unexpected response")
 
     # Shutdown
     try:

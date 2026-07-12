@@ -1,9 +1,9 @@
 site_name: Java Code Indexer
 site_description: Java 项目的 MCP 代码索引工具文档
-site_url: ""
+site_url: "https://sodlinken.github.io/java-code-indexer/"
 
-repo_url: ""
-edit_uri: ""
+repo_url: "https://github.com/sodlinken/java-code-indexer"
+edit_uri: "edit/main/doc/"
 
 docs_dir: doc
 site_dir: _site

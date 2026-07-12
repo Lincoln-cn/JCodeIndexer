@@ -1,9 +1,10 @@
 # 多项目模式配置
+# 路径由 test_multi_project.py 动态生成
 projects:
   - name: jindexer
-    root: /home/ubuntu/jairouter/mcp/java-code-indexer
+    root: PLACEHOLDER_JINDEXER_ROOT
   - name: test-project
-    root: /tmp/test-multi-project
+    root: PLACEHOLDER_TEST_PROJECT_ROOT
 
 data_dir: .jindexer
 db_name: index.db

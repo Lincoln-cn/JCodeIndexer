@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>Java Code Indexer MCP Tool</name>
-    <description>本地代码索引 MCP 工具，提供 7 个核心能力</description>
+    <description>Java AST-level code indexer with SQLite storage, exposed as an MCP server for AI coding assistants</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>

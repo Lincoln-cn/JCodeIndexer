@@ -72,25 +72,6 @@ public final class Schema {
         )
         """;
 
-    public static final String CREATE_EMBEDDING_CACHE = """
-        CREATE TABLE IF NOT EXISTS embedding_cache (
-            chunk_id INTEGER PRIMARY KEY,
-            embedding BLOB NOT NULL,
-            model TEXT NOT NULL,
-            created_at INTEGER NOT NULL,
-            FOREIGN KEY (chunk_id) REFERENCES chunks(id) ON DELETE CASCADE
-        )
-        """;
-
-    public static final String CREATE_EMBEDDING_FAILURES = """
-        CREATE TABLE IF NOT EXISTS embedding_failures (
-            chunk_id INTEGER PRIMARY KEY,
-            error TEXT NOT NULL,
-            failed_at INTEGER NOT NULL,
-            FOREIGN KEY (chunk_id) REFERENCES chunks(id) ON DELETE CASCADE
-        )
-        """;
-
     public static final String CREATE_CONFIG_ENTRIES = """
         CREATE TABLE IF NOT EXISTS config_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -185,8 +166,6 @@ public final class Schema {
             CREATE_CALLS,
             CREATE_CHUNKS,
             CREATE_FILE_META,
-            CREATE_EMBEDDING_CACHE,
-            CREATE_EMBEDDING_FAILURES,
             CREATE_CONFIG_ENTRIES,
             CREATE_DEPENDENCIES,
             CREATE_INDEX_SYMBOLS_QUALIFIED,

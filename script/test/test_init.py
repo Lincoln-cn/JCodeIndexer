@@ -3,9 +3,38 @@
 import subprocess
 import json
 import sys
+import os
+import glob
+import shutil
 
-JAR = "/home/ubuntu/jairouter/mcp/java-code-indexer/target/java-code-indexer-1.0.0-SNAPSHOT.jar"
-JAVA = "/usr/lib/jvm/java-21-openjdk-amd64/bin/java"
+# Configurable paths via environment variables
+JAR = os.environ.get("JAR_PATH")
+JAVA = os.environ.get("JAVA_HOME")
+ROOT = os.environ.get("PROJECT_ROOT")
+
+# Auto-detect JAR if not set
+if not JAR:
+    candidates = glob.glob("target/java-code-indexer-*-shaded.jar")
+    if candidates:
+        JAR = candidates[0]
+    else:
+        candidates = glob.glob("target/java-code-indexer-*.jar")
+        JAR = candidates[0] if candidates else None
+
+# Auto-detect Java if not set
+if not JAVA:
+    JAVA = shutil.which("java")
+
+# Auto-detect project root if not set
+if not ROOT:
+    ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+if not JAR:
+    print("ERROR: JAR not found. Set JAR_PATH env var or build the project first.")
+    sys.exit(1)
+if not JAVA:
+    print("ERROR: Java not found. Set JAVA_HOME env var or ensure java is in PATH.")
+    sys.exit(1)
 
 init_msg = json.dumps({
     "jsonrpc": "2.0",
@@ -18,11 +47,13 @@ init_msg = json.dumps({
     }
 })
 
-print("Sending initialize request...")
-print(f"Request: {init_msg}")
+print(f"JAR: {JAR}")
+print(f"JAVA: {JAVA}")
+print(f"ROOT: {ROOT}")
+print("\nSending initialize request...")
 
 proc = subprocess.Popen(
-    [JAVA, "-jar", JAR, "--project-root", "/home/ubuntu/jairouter/mcp/java-code-indexer"],
+    [JAVA, "-jar", JAR, "--project-root", ROOT],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE

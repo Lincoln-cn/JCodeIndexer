@@ -72,6 +72,9 @@ jobs:
             echo "version=$VER" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Run tests
+        run: mvn test
+
       - name: Build
         run: mvn package -DskipTests
 
@@ -303,7 +306,7 @@ jobs:
   release:
     name: Create Release
     needs: [build, native, docker]
-    if: github.ref_type == 'tag'
+    if: always() && needs.build.result == 'success' && github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

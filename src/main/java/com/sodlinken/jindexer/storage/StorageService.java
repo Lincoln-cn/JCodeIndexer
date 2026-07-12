@@ -145,6 +145,8 @@ public class StorageService implements AutoCloseable {
     }
 
     public List<Symbol> findSymbolsByFile(String filePath) throws SQLException {
+        // 统一路径分隔符为正斜杠
+        filePath = filePath.replace("\\", "/");
         String sql = """
             SELECT id, file_path, start_line, end_line, kind, name, qualified_name,
                    signature, return_type, parent_class, modifiers, javadoc
@@ -358,6 +360,8 @@ public class StorageService implements AutoCloseable {
     }
 
     public List<Chunk> findChunksByFile(String filePath) throws SQLException {
+        // 统一路径分隔符为正斜杠
+        filePath = filePath.replace("\\", "/");
         String sql = """
             SELECT id, file_path, type, start_line, end_line, name, content,
                    package_name, class_name, signature
@@ -512,7 +516,7 @@ public class StorageService implements AutoCloseable {
         StringBuilder sql = new StringBuilder("""
             SELECT id, file_path, line, group_id, artifact_id, version, scope, dep_type, classifier
             FROM dependencies
-            WHERE (artifact_id LIKE ? OR group_id LIKE ? OR version LIKE ?)
+            WHERE (? = '*' OR artifact_id LIKE ? OR group_id LIKE ? OR version LIKE ?)
             """);
         if (depType != null && !depType.isEmpty()) {
             sql.append(" AND dep_type = ?");
@@ -522,6 +526,7 @@ public class StorageService implements AutoCloseable {
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql.toString())) {
             String pattern = "%" + query + "%";
             int idx = 1;
+            ps.setString(idx++, query);
             ps.setString(idx++, pattern);
             ps.setString(idx++, pattern);
             ps.setString(idx++, pattern);
@@ -907,6 +912,22 @@ public class StorageService implements AutoCloseable {
             rs.getInt("symbol_count"),
             rs.getLong("last_indexed_at")
         );
+    }
+
+    /**
+     * 获取 chunk 内容
+     */
+    public Optional<Chunk> findChunkById(long chunkId) throws SQLException {
+        String sql = """
+            SELECT id, file_path, type, start_line, end_line, name,
+                   content, package_name, class_name, signature
+            FROM chunks WHERE id = ?
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setLong(1, chunkId);
+            List<Chunk> chunks = mapChunks(ps);
+            return chunks.isEmpty() ? Optional.empty() : Optional.of(chunks.get(0));
+        }
     }
 
     @Override

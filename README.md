@@ -98,7 +98,6 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 | `get_file_info` | File details: symbols, code chunks, call relationships |
 | `search_config` | Search config files (YAML / Properties / .env) |
 | `find_dependencies` | Search project dependencies (Maven / Gradle) |
-| `semantic_search` | Semantic search (requires Embedding config, not yet active) |
 | `list_projects` | List indexed projects (multi-project mode only) |
 
 ---
@@ -111,17 +110,12 @@ Create `.jindexer/config.yaml` in your project root (optional):
 project_root: /path/to/project
 data_dir: .jindexer
 threads: 4
-embedding:
-  enabled: false
 ```
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `INDEXER_EMBEDDING_ENABLED` | Enable embedding API | `false` |
-| `INDEXER_EMBEDDING_BASE_URL` | Embedding API endpoint | — |
-| `INDEXER_EMBEDDING_MODEL` | Embedding model name | — |
 | `INDEXER_THREADS` | Indexing thread count | `4` |
 | `INDEXER_LOG_LEVEL` | Log level | `INFO` |
 

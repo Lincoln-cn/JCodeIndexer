@@ -33,8 +33,8 @@ public class ConfigLoader {
         // 环境变量覆盖（优先级最高）
         applyEnvironmentOverrides(config);
 
-        log.info("配置加载完成: projectRoot={}, dataDir={}, embedding={}",
-            config.getProjectRoot(), config.getDataDir(), config.isEmbeddingEnabled());
+        log.info("配置加载完成: projectRoot={}, dataDir={}",
+            config.getProjectRoot(), config.getDataDir());
         return config;
     }
 
@@ -76,25 +76,6 @@ public class ConfigLoader {
             }
             if (indexing.containsKey("max_file_size_kb")) {
                 config.setMaxFileSizeKB(((Number) indexing.get("max_file_size_kb")).intValue());
-            }
-        }
-
-        if (map.containsKey("embedding")) {
-            Map<String, Object> embedding = (Map<String, Object>) map.get("embedding");
-            if (embedding.containsKey("enabled")) {
-                config.setEmbeddingEnabled((Boolean) embedding.get("enabled"));
-            }
-            if (embedding.containsKey("api_url")) {
-                config.setEmbeddingApiUrl((String) embedding.get("api_url"));
-            }
-            if (embedding.containsKey("api_key")) {
-                config.setEmbeddingApiKey((String) embedding.get("api_key"));
-            }
-            if (embedding.containsKey("model")) {
-                config.setEmbeddingModel((String) embedding.get("model"));
-            }
-            if (embedding.containsKey("batch_size")) {
-                config.setEmbeddingBatchSize(((Number) embedding.get("batch_size")).intValue());
             }
         }
 
@@ -141,30 +122,6 @@ public class ConfigLoader {
     }
 
     private static void applyEnvironmentOverrides(Config config) {
-        // INDEXER_EMBEDDING_ENABLED
-        String embeddingEnabled = System.getenv("INDEXER_EMBEDDING_ENABLED");
-        if (embeddingEnabled != null) {
-            config.setEmbeddingEnabled(Boolean.parseBoolean(embeddingEnabled));
-        }
-
-        // INDEXER_EMBEDDING_API_URL
-        String embeddingApiUrl = System.getenv("INDEXER_EMBEDDING_API_URL");
-        if (embeddingApiUrl != null && !embeddingApiUrl.isBlank()) {
-            config.setEmbeddingApiUrl(embeddingApiUrl);
-        }
-
-        // INDEXER_EMBEDDING_API_KEY
-        String embeddingApiKey = System.getenv("INDEXER_EMBEDDING_API_KEY");
-        if (embeddingApiKey != null && !embeddingApiKey.isBlank()) {
-            config.setEmbeddingApiKey(embeddingApiKey);
-        }
-
-        // INDEXER_EMBEDDING_MODEL
-        String embeddingModel = System.getenv("INDEXER_EMBEDDING_MODEL");
-        if (embeddingModel != null && !embeddingModel.isBlank()) {
-            config.setEmbeddingModel(embeddingModel);
-        }
-
         // INDEXER_THREADS
         String threads = System.getenv("INDEXER_THREADS");
         if (threads != null) {

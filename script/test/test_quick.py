@@ -1,10 +1,39 @@
 #!/usr/bin/env python3
 """Quick diagnostic: can we talk to the MCP server at all?"""
-import subprocess, json, time, sys
+import subprocess, json, time, sys, os, glob, shutil
 
-JAR = "/home/ubuntu/jairouter/mcp/java-code-indexer/target/java-code-indexer-1.0.0-SNAPSHOT.jar"
-JAVA = "/usr/lib/jvm/java-21-openjdk-amd64/bin/java"
-ROOT = "/home/ubuntu/jairouter/mcp/java-code-indexer"
+# Configurable paths via environment variables
+JAR = os.environ.get("JAR_PATH")
+JAVA = os.environ.get("JAVA_HOME")
+ROOT = os.environ.get("PROJECT_ROOT")
+
+# Auto-detect JAR if not set
+if not JAR:
+    candidates = glob.glob("target/java-code-indexer-*-shaded.jar")
+    if candidates:
+        JAR = candidates[0]
+    else:
+        candidates = glob.glob("target/java-code-indexer-*.jar")
+        JAR = candidates[0] if candidates else None
+
+# Auto-detect Java if not set
+if not JAVA:
+    JAVA = shutil.which("java")
+
+# Auto-detect project root if not set
+if not ROOT:
+    ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+if not JAR:
+    print("ERROR: JAR not found. Set JAR_PATH env var or build the project first.")
+    sys.exit(1)
+if not JAVA:
+    print("ERROR: Java not found. Set JAVA_HOME env var or ensure java is in PATH.")
+    sys.exit(1)
+
+print(f"JAR: {JAR}")
+print(f"JAVA: {JAVA}")
+print(f"ROOT: {ROOT}")
 
 msg = json.dumps({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}})
 frame = f"Content-Length: {len(msg.encode('utf-8'))}\r\n\r\n{msg}"
@@ -25,17 +54,12 @@ try:
     import select
     ready = select.select([proc.stdout], [], [], 5)
     if ready[0]:
-        # Read headers
         line = proc.stdout.readline()
         print(f"Got line: {line!r}")
         if line:
-            # Read more headers until empty line
             while line.strip():
                 line = proc.stdout.readline()
                 print(f"Got line: {line!r}")
-            # Read Content-Length
-            # Actually, let me just read the whole response
-            pass
     else:
         print("No data available after 5s")
         stderr_data = proc.stderr.read(4096) if select.select([proc.stderr], [], [], 0)[0] else b""

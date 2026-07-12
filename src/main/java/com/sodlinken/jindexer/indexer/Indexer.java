@@ -106,7 +106,8 @@ public class Indexer {
 
             int fileIndex = 0;
             for (Path file : allFiles) {
-                String relativePath = projectRoot.relativize(file).toString();
+                // 统一使用正斜杠，确保跨平台兼容
+                String relativePath = projectRoot.relativize(file).toString().replace("\\", "/");
                 currentFiles.add(relativePath);
 
                 try {
@@ -202,7 +203,8 @@ public class Indexer {
      * 使用 diff 策略：仅更新变化的符号/块/配置/依赖，减少数据库写入
      */
     private void indexFile(Path projectRoot, Path filePath) throws Exception {
-        String relativePath = projectRoot.relativize(filePath).toString();
+        // 统一使用正斜杠，确保跨平台兼容
+        String relativePath = projectRoot.relativize(filePath).toString().replace("\\", "/");
         String fileName = filePath.getFileName().toString().toLowerCase();
 
         dbManager.executeInTransactionVoid(conn -> {
@@ -245,20 +247,7 @@ public class Indexer {
     private void indexJavaFile(String relativePath, Path filePath) throws Exception {
         ParseResult parsed = javaParser.parse(relativePath, filePath);
 
-        // --- 引用和调用：总是全量重插（依赖 symbol ID） ---
-        storage.deleteReferencesByFile(relativePath);
-        storage.deleteCallsByFile(relativePath);
-
-        for (Reference ref : parsed.references()) {
-            if (ref.symbolId() > 0) {
-                storage.insertReference(ref);
-            }
-        }
-        for (Call call : parsed.calls()) {
-            storage.insertCall(call);
-        }
-
-        // --- 符号 diff ---
+        // --- 符号 diff（先插入符号，引用需要 symbol_id） ---
         List<Symbol> oldSymbols = storage.findSymbolsByFile(relativePath);
         List<Symbol> newSymbols = parsed.symbols();
 
@@ -294,6 +283,33 @@ public class Indexer {
         }
         if (!symbolsToInsert.isEmpty()) {
             storage.insertSymbols(symbolsToInsert);
+        }
+
+        // --- 引用和调用：先删旧的，再解析 symbol_id 后插入 ---
+        storage.deleteReferencesByFile(relativePath);
+        storage.deleteCallsByFile(relativePath);
+
+        // 解析引用的 symbol_id（先收集所有已知符号的 qualifiedName -> id 映射）
+        List<Symbol> allSymbols = storage.listAllSymbols(10000);
+        Map<String, Long> qualifiedNameToId = new LinkedHashMap<>();
+        for (Symbol s : allSymbols) {
+            qualifiedNameToId.put(s.qualifiedName(), s.id());
+        }
+
+        // 解析引用中的类型名，查找对应的 symbol_id
+        for (Reference ref : parsed.references()) {
+            String refName = extractReferenceName(ref.context());
+            if (refName != null) {
+                Long symbolId = qualifiedNameToId.get(refName);
+                if (symbolId != null && symbolId > 0) {
+                    Reference resolvedRef = new Reference(0, symbolId, ref.fromFile(), ref.fromLine(), ref.context());
+                    storage.insertReference(resolvedRef);
+                }
+            }
+        }
+
+        for (Call call : parsed.calls()) {
+            storage.insertCall(call);
         }
 
         // --- 代码块 diff ---
@@ -488,5 +504,21 @@ public class Indexer {
 
     public boolean isIndexing() {
         return indexing;
+    }
+
+    /**
+     * 从引用上下文中提取被引用的类型/类名
+     */
+    private String extractReferenceName(String context) {
+        if (context == null) return null;
+        // "import com.foo.Bar" -> "com.foo.Bar"
+        if (context.startsWith("import ")) {
+            return context.substring(7).trim();
+        }
+        // "type Bar" -> "Bar"
+        if (context.startsWith("type ")) {
+            return context.substring(5).trim();
+        }
+        return context.trim();
     }
 }

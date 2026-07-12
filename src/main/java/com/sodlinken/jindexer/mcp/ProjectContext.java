@@ -5,6 +5,8 @@ import com.sodlinken.jindexer.search.SearchProvider;
 import com.sodlinken.jindexer.search.StructuredSearch;
 import com.sodlinken.jindexer.storage.DatabaseManager;
 import com.sodlinken.jindexer.storage.StorageService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 单个项目的运行时上下文：数据库 + 存储 + 搜索
@@ -15,6 +17,8 @@ public record ProjectContext(
     StorageService storage,
     SearchProvider searchProvider
 ) implements AutoCloseable {
+
+    private static final Logger log = LoggerFactory.getLogger(ProjectContext.class);
 
     /**
      * 创建项目上下文（自动初始化数据库）

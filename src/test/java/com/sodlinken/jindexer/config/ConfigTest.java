@@ -18,7 +18,6 @@ class ConfigTest {
         assertFalse(config.isFollowSymlinks());
         assertEquals(512, config.getMaxFileSizeKB());
         assertEquals("index.db", config.getDbName());
-        assertFalse(config.isEmbeddingEnabled());
         assertFalse(config.isVerbose());
         assertNotNull(config.getProjects());
         assertTrue(config.getProjects().isEmpty());

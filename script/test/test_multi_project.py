@@ -1,10 +1,43 @@
 #!/usr/bin/env python3
 """Multi-project MCP test"""
-import subprocess, json, sys, time, os
+import subprocess, json, sys, time, os, glob, shutil
 
-JAR = "/home/ubuntu/jairouter/mcp/java-code-indexer/target/java-code-indexer-1.0.0-SNAPSHOT.jar"
-JAVA = "/usr/lib/jvm/java-21-openjdk-amd64/bin/java"
-CONFIG = "/home/ubuntu/jairouter/mcp/java-code-indexer/test-multi-project.yaml"
+# Configurable paths via environment variables
+JAR = os.environ.get("JAR_PATH")
+JAVA = os.environ.get("JAVA_HOME")
+CONFIG = os.environ.get("MULTI_PROJECT_CONFIG")
+
+# Auto-detect JAR if not set
+if not JAR:
+    candidates = glob.glob("target/java-code-indexer-*-shaded.jar")
+    if candidates:
+        JAR = candidates[0]
+    else:
+        candidates = glob.glob("target/java-code-indexer-*.jar")
+        JAR = candidates[0] if candidates else None
+
+# Auto-detect Java if not set
+if not JAVA:
+    JAVA = shutil.which("java")
+
+# Auto-detect config if not set
+if not CONFIG:
+    CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-multi-project.yaml")
+
+# Auto-detect project roots from config or use defaults
+JINDEXER_ROOT = os.environ.get("JINDEXER_ROOT", os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+TEST_PROJECT_ROOT = os.environ.get("TEST_PROJECT_ROOT", "/tmp/test-multi-project")
+
+if not JAR:
+    print("ERROR: JAR not found. Set JAR_PATH env var or build the project first.")
+    sys.exit(1)
+if not JAVA:
+    print("ERROR: Java not found. Set JAVA_HOME env var or ensure java is in PATH.")
+    sys.exit(1)
+
+print(f"JAR: {JAR}")
+print(f"JAVA: {JAVA}")
+print(f"CONFIG: {CONFIG}")
 
 def send_msg(proc, method, params=None, msg_id=1):
     msg = {"jsonrpc": "2.0", "id": msg_id, "method": method}
@@ -29,8 +62,8 @@ def read_response(proc, timeout=10):
         return {"raw": line}
 
 # First, init both projects
-print("=== 初始化项目 ===")
-for name, root in [("jindexer", "/home/ubuntu/jairouter/mcp/java-code-indexer"), ("test-project", "/tmp/test-multi-project")]:
+print("\n=== 初始化项目 ===")
+for name, root in [("jindexer", JINDEXER_ROOT), ("test-project", TEST_PROJECT_ROOT)]:
     os.makedirs(f"{root}/.jindexer", exist_ok=True)
     init_proc = subprocess.run([JAVA, "-jar", JAR, "--project-root", root, "--init"],
                                capture_output=True, text=True, timeout=30)
@@ -38,15 +71,34 @@ for name, root in [("jindexer", "/home/ubuntu/jairouter/mcp/java-code-indexer"),
 
 # Index both projects
 print("\n=== 索引项目 ===")
-for name, root in [("jindexer", "/home/ubuntu/jairouter/mcp/java-code-indexer"), ("test-project", "/tmp/test-multi-project")]:
+for name, root in [("jindexer", JINDEXER_ROOT), ("test-project", TEST_PROJECT_ROOT)]:
     idx_proc = subprocess.run([JAVA, "-jar", JAR, "--project-root", root, "--index"],
                               capture_output=True, text=True, timeout=60)
     print(f"  {name}: {'OK' if idx_proc.returncode == 0 else 'FAIL'}")
 
 # Start MCP server with multi-project config
 print("\n=== MCP 多项目测试 ===")
+
+# Generate dynamic config with correct paths
+config_content = f"""projects:
+  - name: jindexer
+    root: {JINDEXER_ROOT}
+  - name: test-project
+    root: {TEST_PROJECT_ROOT}
+
+data_dir: .jindexer
+db_name: index.db
+extract_javadoc: false
+follow_symlinks: false
+embedding:
+  enabled: false
+"""
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test-multi-project-dynamic.yaml")
+with open(config_path, "w") as f:
+    f.write(config_content)
+
 env = os.environ.copy()
-env["JINDEXER_CONFIG"] = CONFIG
+env["JINDEXER_CONFIG"] = config_path
 
 proc = subprocess.Popen(
     [JAVA, "-jar", JAR],

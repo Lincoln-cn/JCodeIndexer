@@ -38,13 +38,6 @@ public class Config {
     // === 存储 ===
     private String dbName = "index.db";
 
-    // === Embedding（可选） ===
-    private boolean embeddingEnabled = false;
-    private String embeddingApiUrl = "";
-    private String embeddingApiKey = "";
-    private String embeddingModel = "text-embedding-3-small";
-    private int embeddingBatchSize = 50;
-
     // === 服务 ===
     private String logLevel = "INFO";
     private boolean verbose = false;
@@ -96,21 +89,6 @@ public class Config {
 
     public String getDbName() { return dbName; }
     public void setDbName(String dbName) { this.dbName = dbName; }
-
-    public boolean isEmbeddingEnabled() { return embeddingEnabled; }
-    public void setEmbeddingEnabled(boolean embeddingEnabled) { this.embeddingEnabled = embeddingEnabled; }
-
-    public String getEmbeddingApiUrl() { return embeddingApiUrl; }
-    public void setEmbeddingApiUrl(String embeddingApiUrl) { this.embeddingApiUrl = embeddingApiUrl; }
-
-    public String getEmbeddingApiKey() { return embeddingApiKey; }
-    public void setEmbeddingApiKey(String embeddingApiKey) { this.embeddingApiKey = embeddingApiKey; }
-
-    public String getEmbeddingModel() { return embeddingModel; }
-    public void setEmbeddingModel(String embeddingModel) { this.embeddingModel = embeddingModel; }
-
-    public int getEmbeddingBatchSize() { return embeddingBatchSize; }
-    public void setEmbeddingBatchSize(int embeddingBatchSize) { this.embeddingBatchSize = embeddingBatchSize; }
 
     public String getLogLevel() { return logLevel; }
     public void setLogLevel(String logLevel) { this.logLevel = logLevel; }

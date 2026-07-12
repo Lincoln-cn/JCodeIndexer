@@ -1,10 +1,35 @@
 #!/usr/bin/env python3
 """Minimal MCP tool test - single project mode"""
-import subprocess, json, sys, time
+import subprocess, json, sys, time, os, glob, shutil
 
-JAR = "/home/ubuntu/jairouter/mcp/java-code-indexer/target/java-code-indexer-1.0.0-SNAPSHOT.jar"
-JAVA = "/usr/lib/jvm/java-21-openjdk-amd64/bin/java"
-ROOT = "/home/ubuntu/jairouter/mcp/java-code-indexer"
+# Configurable paths via environment variables
+JAR = os.environ.get("JAR_PATH")
+JAVA = os.environ.get("JAVA_HOME")
+ROOT = os.environ.get("PROJECT_ROOT")
+
+# Auto-detect JAR if not set
+if not JAR:
+    candidates = glob.glob("target/java-code-indexer-*-shaded.jar")
+    if candidates:
+        JAR = candidates[0]
+    else:
+        candidates = glob.glob("target/java-code-indexer-*.jar")
+        JAR = candidates[0] if candidates else None
+
+# Auto-detect Java if not set
+if not JAVA:
+    JAVA = shutil.which("java")
+
+# Auto-detect project root if not set
+if not ROOT:
+    ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+if not JAR:
+    print("ERROR: JAR not found. Set JAR_PATH env var or build the project first.")
+    sys.exit(1)
+if not JAVA:
+    print("ERROR: Java not found. Set JAVA_HOME env var or ensure java is in PATH.")
+    sys.exit(1)
 
 def send_msg(proc, method, params=None, msg_id=1):
     msg = {"jsonrpc": "2.0", "id": msg_id, "method": method}

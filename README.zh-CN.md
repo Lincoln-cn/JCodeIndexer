@@ -98,7 +98,6 @@ Options:
 | `get_file_info` | 文件详情：符号、代码块、调用关系 |
 | `search_config` | 搜索配置文件（YAML / Properties / .env） |
 | `find_dependencies` | 搜索项目依赖（Maven / Gradle） |
-| `semantic_search` | 语义搜索（需配置 Embedding，暂未启用） |
 | `list_projects` | 列出已索引项目（仅多项目模式） |
 
 ---
@@ -111,17 +110,12 @@ Options:
 project_root: /path/to/project
 data_dir: .jindexer
 threads: 4
-embedding:
-  enabled: false
 ```
 
 ### 环境变量
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `INDEXER_EMBEDDING_ENABLED` | 启用 Embedding API | `false` |
-| `INDEXER_EMBEDDING_BASE_URL` | Embedding API 端点 | — |
-| `INDEXER_EMBEDDING_MODEL` | Embedding 模型名称 | — |
 | `INDEXER_THREADS` | 索引线程数 | `4` |
 | `INDEXER_LOG_LEVEL` | 日志级别 | `INFO` |
 

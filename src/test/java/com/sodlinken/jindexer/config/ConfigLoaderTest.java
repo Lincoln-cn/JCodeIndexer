@@ -31,17 +31,12 @@ class ConfigLoaderTest {
               extract_javadoc: true
             storage:
               db_name: custom.db
-            embedding:
-              enabled: true
-              model: text-embedding-3-large
             """);
 
         Config config = ConfigLoader.load(tempDir, jindexer);
         assertEquals(8, config.getIndexingThreads());
         assertTrue(config.isExtractJavadoc());
         assertEquals("custom.db", config.getDbName());
-        assertTrue(config.isEmbeddingEnabled());
-        assertEquals("text-embedding-3-large", config.getEmbeddingModel());
     }
 
     @Test
@@ -84,7 +79,6 @@ class ConfigLoaderTest {
     void noConfigFileUsesDefaults(@TempDir Path tempDir) {
         Config config = ConfigLoader.load(tempDir, tempDir.resolve(".jindexer"));
         assertEquals("index.db", config.getDbName());
-        assertFalse(config.isEmbeddingEnabled());
         assertTrue(config.getProjects().isEmpty());
     }
 
