@@ -292,19 +292,12 @@ public class Indexer {
         storage.deleteReferencesByFile(relativePath);
         storage.deleteCallsByFile(relativePath);
 
-        // 解析引用的 symbol_id（先收集所有已知符号的 qualifiedName -> id 映射）
-        List<Symbol> allSymbols = storage.listAllSymbols(10000);
-        Map<String, Long> qualifiedNameToId = new LinkedHashMap<>();
-        for (Symbol s : allSymbols) {
-            qualifiedNameToId.put(s.qualifiedName(), s.id());
-        }
-
         // 解析引用中的类型名，查找对应的 symbol_id
         for (Reference ref : parsed.references()) {
             String refName = extractReferenceName(ref.context());
             if (refName != null) {
-                Long symbolId = qualifiedNameToId.get(refName);
-                if (symbolId != null && symbolId > 0) {
+                long symbolId = storage.findSymbolIdByQualifiedName(refName);
+                if (symbolId > 0) {
                     Reference resolvedRef = new Reference(0, symbolId, ref.fromFile(), ref.fromLine(), ref.context());
                     storage.insertReference(resolvedRef);
                 }

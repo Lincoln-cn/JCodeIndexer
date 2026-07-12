@@ -179,7 +179,7 @@ public class McpServer {
 
         JsonObject serverInfo = new JsonObject();
         serverInfo.addProperty("name", "java-code-indexer");
-        serverInfo.addProperty("version", "1.1.0");
+        serverInfo.addProperty("version", "0.4.0");
         result.add("serverInfo", serverInfo);
 
         JsonObject capabilities = new JsonObject();

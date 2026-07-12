@@ -6,7 +6,9 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -250,6 +252,41 @@ public class StorageService implements AutoCloseable {
             List<Symbol> results = mapSymbols(ps);
             return results.isEmpty() ? Optional.empty() : Optional.of(results.getFirst());
         }
+    }
+
+    /**
+     * 按限定名精确查找符号 ID
+     */
+    public long findSymbolIdByQualifiedName(String qualifiedName) throws SQLException {
+        String sql = "SELECT id FROM symbols WHERE qualified_name = ? LIMIT 1";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, qualifiedName);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getLong("id") : -1;
+            }
+        }
+    }
+
+    /**
+     * 批量按限定名查找符号 ID
+     */
+    public Map<String, Long> findSymbolIdsByQualifiedNames(List<String> qualifiedNames) throws SQLException {
+        Map<String, Long> result = new HashMap<>();
+        if (qualifiedNames.isEmpty()) return result;
+
+        String sql = "SELECT id, qualified_name FROM symbols WHERE qualified_name IN (" +
+                     qualifiedNames.stream().map(n -> "?").reduce((a, b) -> a + "," + b).orElse("") + ")";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            for (int i = 0; i < qualifiedNames.size(); i++) {
+                ps.setString(i + 1, qualifiedNames.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.put(rs.getString("qualified_name"), rs.getLong("id"));
+                }
+            }
+        }
+        return result;
     }
 
     public List<Symbol> findSymbolsByFile(String filePath) throws SQLException {
