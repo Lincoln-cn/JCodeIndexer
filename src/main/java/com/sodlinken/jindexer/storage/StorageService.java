@@ -81,6 +81,114 @@ public class StorageService implements AutoCloseable {
     }
 
     /**
+     * FTS5 全文搜索符号（性能优化版）
+     * 支持布尔操作：AND, OR, NOT
+     * 支持前缀搜索：term*
+     * 支持短语搜索："term1 term2"
+     */
+    public List<Symbol> searchSymbolsFts(String query, int limit) throws SQLException {
+        String ftsQuery = convertToFtsQuery(query);
+        String sql = """
+            SELECT s.id, s.file_path, s.start_line, s.end_line, s.kind, s.name, s.qualified_name,
+                   s.signature, s.return_type, s.parent_class, s.modifiers, s.javadoc
+            FROM symbols s
+            JOIN symbols_fts fts ON s.id = fts.rowid
+            WHERE symbols_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, ftsQuery);
+            ps.setInt(2, limit);
+            return mapSymbols(ps);
+        }
+    }
+
+    /**
+     * FTS5 全文搜索代码块（性能优化版）
+     */
+    public List<Chunk> searchChunksFts(String query, int limit) throws SQLException {
+        String ftsQuery = convertToFtsQuery(query);
+        String sql = """
+            SELECT c.id, c.file_path, c.type, c.start_line, c.end_line, c.name,
+                   c.content, c.package_name, c.class_name, c.signature
+            FROM chunks c
+            JOIN chunks_fts fts ON c.id = fts.rowid
+            WHERE chunks_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, ftsQuery);
+            ps.setInt(2, limit);
+            return mapChunks(ps);
+        }
+    }
+
+    /**
+     * 将用户查询转换为 FTS5 查询语法
+     * - 普通关键词 → 关键词*
+     * - 布尔操作 → AND/OR/NOT + 前缀匹配
+     * - 短语搜索 → 保持引号
+     * - 通配符 → 保持原样
+     */
+    private String convertToFtsQuery(String query) {
+        if (query == null || query.isEmpty()) return "*";
+
+        // 如果包含引号，保持原样（短语搜索）
+        if (query.contains("\"")) {
+            return query;
+        }
+
+        // 如果已有通配符，保持原样
+        if (query.endsWith("*")) {
+            return query;
+        }
+
+        // 处理布尔操作符：将每个 term 转换为前缀匹配
+        if (query.contains(" AND ") || query.contains(" OR ") || query.contains(" NOT ")) {
+            return convertBooleanQuery(query);
+        }
+
+        // 单个关键词，添加前缀通配符
+        return query + "*";
+    }
+
+    /**
+     * 转换布尔查询为 FTS5 格式
+     * 将 "Config AND Loader" 转换为 "Config* AND Loader*"
+     */
+    private String convertBooleanQuery(String query) {
+        StringBuilder result = new StringBuilder();
+        String[] parts = query.split("(\\s+AND\\s+|\\s+OR\\s+|\\s+NOT\\s+)");
+
+        // 保留操作符
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\s+AND\\s+|\\s+OR\\s+|\\s+NOT\\s+)").matcher(query);
+        java.util.List<String> operators = new ArrayList<>();
+        while (matcher.find()) {
+            operators.add(matcher.group());
+        }
+
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i].trim();
+            if (!part.isEmpty()) {
+                // 对每个 term 添加前缀通配符
+                if (!part.endsWith("*")) {
+                    result.append(part).append("*");
+                } else {
+                    result.append(part);
+                }
+            }
+            // 添加操作符（如果有）
+            if (i < operators.size()) {
+                result.append(operators.get(i));
+            }
+        }
+
+        return result.toString();
+    }
+
+    /**
      * 列出所有符号（通配符 * 搜索用）
      */
     public List<Symbol> listAllSymbols(int limit) throws SQLException {

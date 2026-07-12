@@ -1,5 +1,7 @@
-# innerdoc: 内部文档，不提交到 git
+# innerdoc: 内部文档
 innerdoc/
+!innerdoc/roadmap/
+!innerdoc/design/
 
 # Qwen Code 工具状态
 .qwen/

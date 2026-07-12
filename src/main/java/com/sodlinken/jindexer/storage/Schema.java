@@ -150,6 +150,68 @@ public final class Schema {
     public static final String CREATE_INDEX_DEPENDENCIES_TYPE =
         "CREATE INDEX IF NOT EXISTS idx_dependencies_type ON dependencies(dep_type)";
 
+    // FTS5 全文搜索表
+    public static final String CREATE_SYMBOLS_FTS = """
+        CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
+            name, qualified_name, signature,
+            content=symbols, content_rowid=id
+        )
+        """;
+
+    public static final String CREATE_CHUNKS_FTS = """
+        CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+            name, content, package_name, class_name,
+            content=chunks, content_rowid=id
+        )
+        """;
+
+    // FTS 触发器：保持 FTS 表与主表同步
+    public static final String CREATE_SYMBOLS_FTS_INSERT = """
+        CREATE TRIGGER IF NOT EXISTS symbols_ai AFTER INSERT ON symbols BEGIN
+            INSERT INTO symbols_fts(rowid, name, qualified_name, signature)
+            VALUES (new.id, new.name, new.qualified_name, new.signature);
+        END
+        """;
+
+    public static final String CREATE_SYMBOLS_FTS_DELETE = """
+        CREATE TRIGGER IF NOT EXISTS symbols_ad AFTER DELETE ON symbols BEGIN
+            INSERT INTO symbols_fts(symbols_fts, rowid, name, qualified_name, signature)
+            VALUES('delete', old.id, old.name, old.qualified_name, old.signature);
+        END
+        """;
+
+    public static final String CREATE_SYMBOLS_FTS_UPDATE = """
+        CREATE TRIGGER IF NOT EXISTS symbols_au AFTER UPDATE ON symbols BEGIN
+            INSERT INTO symbols_fts(symbols_fts, rowid, name, qualified_name, signature)
+            VALUES('delete', old.id, old.name, old.qualified_name, old.signature);
+            INSERT INTO symbols_fts(rowid, name, qualified_name, signature)
+            VALUES (new.id, new.name, new.qualified_name, new.signature);
+        END
+        """;
+
+    public static final String CREATE_CHUNKS_FTS_INSERT = """
+        CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
+            INSERT INTO chunks_fts(rowid, name, content, package_name, class_name)
+            VALUES (new.id, new.name, new.content, new.package_name, new.class_name);
+        END
+        """;
+
+    public static final String CREATE_CHUNKS_FTS_DELETE = """
+        CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
+            INSERT INTO chunks_fts(chunks_fts, rowid, name, content, package_name, class_name)
+            VALUES('delete', old.id, old.name, old.content, old.package_name, old.class_name);
+        END
+        """;
+
+    public static final String CREATE_CHUNKS_FTS_UPDATE = """
+        CREATE TRIGGER IF NOT EXISTS chunks_au AFTER UPDATE ON chunks BEGIN
+            INSERT INTO chunks_fts(chunks_fts, rowid, name, content, package_name, class_name)
+            VALUES('delete', old.id, old.name, old.content, old.package_name, old.class_name);
+            INSERT INTO chunks_fts(rowid, name, content, package_name, class_name)
+            VALUES (new.id, new.name, new.content, new.package_name, new.class_name);
+        END
+        """;
+
     /**
      * 获取所有 DDL 语句，按顺序执行
      */
@@ -168,6 +230,14 @@ public final class Schema {
             CREATE_FILE_META,
             CREATE_CONFIG_ENTRIES,
             CREATE_DEPENDENCIES,
+            CREATE_SYMBOLS_FTS,
+            CREATE_CHUNKS_FTS,
+            CREATE_SYMBOLS_FTS_INSERT,
+            CREATE_SYMBOLS_FTS_DELETE,
+            CREATE_SYMBOLS_FTS_UPDATE,
+            CREATE_CHUNKS_FTS_INSERT,
+            CREATE_CHUNKS_FTS_DELETE,
+            CREATE_CHUNKS_FTS_UPDATE,
             CREATE_INDEX_SYMBOLS_QUALIFIED,
             CREATE_INDEX_SYMBOLS_KIND,
             CREATE_INDEX_SYMBOLS_FILE,

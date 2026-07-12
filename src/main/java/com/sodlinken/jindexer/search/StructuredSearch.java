@@ -9,7 +9,8 @@ import java.sql.SQLException;
 import java.util.List;
 
 /**
- * 结构化搜索：基于 SQLite 的关键字搜索
+ * 结构化搜索：基于 SQLite FTS5 的全文搜索
+ * 优先使用 FTS5，降级到 LIKE 查询
  */
 public class StructuredSearch implements SearchProvider {
 
@@ -62,19 +63,31 @@ public class StructuredSearch implements SearchProvider {
 
     private List<com.sodlinken.jindexer.model.Symbol> searchSymbols(String query, int limit) {
         try {
-            return storage.searchSymbolsByName(query, limit);
+            // 优先使用 FTS5 搜索
+            return storage.searchSymbolsFts(query, limit);
         } catch (SQLException e) {
-            log.warn("符号搜索失败", e);
-            return List.of();
+            log.debug("FTS5 搜索失败，降级到 LIKE 搜索: {}", e.getMessage());
+            try {
+                return storage.searchSymbolsByName(query, limit);
+            } catch (SQLException ex) {
+                log.warn("符号搜索失败", ex);
+                return List.of();
+            }
         }
     }
 
     private List<com.sodlinken.jindexer.model.Chunk> searchChunks(String query, int limit) {
         try {
-            return storage.searchChunksByContent(query, limit);
+            // 优先使用 FTS5 搜索
+            return storage.searchChunksFts(query, limit);
         } catch (SQLException e) {
-            log.warn("代码块搜索失败", e);
-            return List.of();
+            log.debug("FTS5 搜索失败，降级到 LIKE 搜索: {}", e.getMessage());
+            try {
+                return storage.searchChunksByContent(query, limit);
+            } catch (SQLException ex) {
+                log.warn("代码块搜索失败", ex);
+                return List.of();
+            }
         }
     }
 }

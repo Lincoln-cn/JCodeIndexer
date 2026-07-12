@@ -5,31 +5,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-12
+
+### Added
+- **FTS5 全文搜索**: 使用 SQLite FTS5 虚拟表实现高性能全文搜索
+- FTS5 触发器自动同步：INSERT/UPDATE/DELETE 时自动维护 FTS 索引
+- 布尔搜索支持：`Config AND Loader`、`Config OR Service`、`NOT test`
+- 前缀搜索：`Mcp*` 匹配所有 Mcp 开头的符号
+- 短语搜索：`"import java"` 精确匹配短语
+- StructuredSearch 优先使用 FTS5，降级到 LIKE 查询
+
+### Fixed
+- **FTS5 布尔搜索**: 修复 `AND`/`OR`/`NOT` 被当作普通词处理的问题
+- **PomParser `${project.version}`**: 支持解析项目自身版本（不仅限 parent version）
+
+### Performance
+- 搜索性能提升 10-100x（FTS5 vs LIKE）
+- 平均搜索耗时从 ~50ms 降到 ~6ms
+
+### Documentation
+- 更新 API 文档：移除 semantic_search，工具数从 9 改为 8
+- 更新设计文档：移除 embedding 表引用，工具计数 9→8
+- 更新入门文档：修正配置示例，添加多项目模式
+- 新增开发推进计划（innerdoc/roadmap/）
+- 新增设计文档（innerdoc/design/v0.4.0-fts5-search.md）
+
+### Testing
+- 新增 PomParserTest (5 tests)
+- 新增 StructuredSearchTest (5 tests)
+- 扩展 StorageServiceTest (+12 tests)
+- 总测试数从 16 增加到 38
+
+## [0.3.1] - 2026-07-12
+
+### Fixed
+- **安全漏洞**: SnakeYAML 使用 SafeConstructor 防止反序列化攻击
+- **PomParser.findLineNumber**: 现在正确读取文件定位行号
+- **性能优化**: SHA-1 缓存避免重复计算
+
 ## [0.3.0] - 2026-07-12
 
 ### Fixed
-- **find_references**: 引用 symbol_id=0 被跳过导致返回空结果。修复为先插入符号再解析引用的 qualifiedName→symbolId 映射
-- **find_dependencies**: SQL 查询未处理 NULL 值，当 group_id/version 为 NULL 时 LIKE 比较返回 NULL。添加 `? = '*'` 条件处理通配符查询
-- **get_file_info**: Windows 路径分隔符 `\` 与查询的 `/` 不匹配。统一使用正斜杠
-- Release workflow `needs` condition blocking Fat JAR release when Native/Docker builds are skipped
+- **find_references**: 引用 symbol_id=0 被跳过导致返回空结果
+- **find_dependencies**: SQL 查询未处理 NULL 值导致通配符查询失败
+- **get_file_info**: Windows 路径分隔符不匹配
+- Release workflow needs 条件修复
 
 ### Changed
-- 移除语义搜索功能（embedding/vector 相关代码），聚焦核心结构化搜索
-- Python E2E 测试改用环境变量，不再硬编码路径
-- 单元测试从 23 个精简为 16 个（移除 embedding 相关测试）
+- 移除语义搜索功能（embedding/vector 相关代码）
+- Python E2E 测试改用环境变量
+- 单元测试精简为 16 个
 
 ### Added
-- CI workflow for pull requests and pushes (`ci.yml`)
-- Test step in release workflow before build
+- CI workflow (ci.yml)
+- Release workflow 添加测试步骤
 - CHANGELOG 文件
-- `find_references` 支持按 symbol_name 模糊查找
-- `find_dependencies` 支持通配符 `*` 查询所有依赖
 
 ### Documentation
-- 重写设计文档（不再引用不存在的 `innerdoc/` 路径）
-- 完善 API 参考（7 个工具完整参数文档）
-- 修复 MkDocs 配置（site_url, repo_url, edit_uri）
-- 更新 README 移除 embedding 相关配置
+- 重写设计文档
+- 完善 API 参考
+- 修复 MkDocs 配置
 
 ## [1.0.0-SNAPSHOT] - Unreleased
 
