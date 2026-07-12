@@ -3,7 +3,9 @@ package com.sodlinken.jindexer.parser;
 import com.sodlinken.jindexer.model.ConfigEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -55,7 +57,7 @@ public class ConfigFileParser {
         List<ConfigEntry> entries = new ArrayList<>();
 
         try {
-            Yaml yaml = new Yaml();
+            Yaml yaml = new Yaml(new SafeConstructor(new LoaderOptions()));
             Object data = yaml.load(content);
             if (data instanceof Map<?, ?> map) {
                 flattenYamlMap(map, "", relativePath, content, entries);

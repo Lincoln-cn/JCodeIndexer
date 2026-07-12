@@ -96,6 +96,7 @@ public class Indexer {
 
             List<Path> toUpdate = new ArrayList<>();
             List<String> toDelete = new ArrayList<>();
+            Map<String, String> sha1Cache = new HashMap<>(); // 缓存 SHA-1 避免重复计算
 
             Set<String> currentFiles = new HashSet<>();
             List<Path> allFiles = new ArrayList<>();
@@ -112,6 +113,7 @@ public class Indexer {
 
                 try {
                     String sha1 = Sha1Util.compute(file);
+                    sha1Cache.put(relativePath, sha1); // 缓存 SHA-1
                     Optional<FileMeta> existing = storage.findFileMeta(relativePath);
 
                     if (existing.isEmpty() || !existing.get().sha1().equals(sha1)) {
@@ -153,11 +155,12 @@ public class Indexer {
 
             try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
                 List<Future<?>> futures = new ArrayList<>();
+                Map<String, String> finalSha1Cache = sha1Cache;
 
                 for (Path file : toUpdate) {
                     futures.add(executor.submit(() -> {
                         try {
-                            indexFile(projectRoot, file);
+                            indexFile(projectRoot, file, finalSha1Cache);
                         } catch (Exception e) {
                             String relPath = projectRoot.relativize(file).toString();
                             errors.add(relPath + ": " + e.getMessage());
@@ -202,7 +205,7 @@ public class Indexer {
      * 索引单个文件（事务保护）
      * 使用 diff 策略：仅更新变化的符号/块/配置/依赖，减少数据库写入
      */
-    private void indexFile(Path projectRoot, Path filePath) throws Exception {
+    private void indexFile(Path projectRoot, Path filePath, Map<String, String> sha1Cache) throws Exception {
         // 统一使用正斜杠，确保跨平台兼容
         String relativePath = projectRoot.relativize(filePath).toString().replace("\\", "/");
         String fileName = filePath.getFileName().toString().toLowerCase();
@@ -218,9 +221,9 @@ public class Indexer {
                 indexConfigFile(relativePath, filePath);
             }
 
-            // 更新文件元信息
+            // 更新文件元信息（使用缓存的 SHA-1）
             try {
-                String sha1 = Sha1Util.compute(filePath);
+                String sha1 = sha1Cache.getOrDefault(relativePath, Sha1Util.compute(filePath));
                 long size = Files.size(filePath);
                 long lastModified = Files.getLastModifiedTime(filePath).toMillis();
                 FileMeta meta = new FileMeta(

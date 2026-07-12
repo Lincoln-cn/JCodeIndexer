@@ -6,6 +6,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.*;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -53,7 +54,7 @@ public class PomParser {
             if (scope == null || scope.isEmpty()) scope = "compile";
 
             if (artifactId != null && !artifactId.isEmpty()) {
-                int line = findLineNumber(relativePath, groupId, artifactId);
+                int line = findLineNumber(filePath, artifactId);
                 deps.add(new Dependency(
                     0, relativePath, line,
                     groupId, artifactId, version, scope,
@@ -184,10 +185,18 @@ public class PomParser {
         return null;
     }
 
-    private int findLineNumber(String relativePath, String groupId, String artifactId) {
-        // 简单启发：在源文件中查找 artifactId 出现的行号
-        // 由于我们没有文件内容，返回 1 作为默认值
-        // 调用方（Indexer）会传入 filePath 以读取行号
+    private int findLineNumber(Path filePath, String artifactId) {
+        if (filePath == null) return 1;
+        try {
+            List<String> lines = Files.readAllLines(filePath);
+            for (int i = 0; i < lines.size(); i++) {
+                if (lines.get(i).contains("<artifactId>" + artifactId + "</artifactId>")) {
+                    return i + 1;
+                }
+            }
+        } catch (IOException e) {
+            // 忽略读取错误
+        }
         return 1;
     }
 }

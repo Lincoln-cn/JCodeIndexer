@@ -2,7 +2,9 @@ package com.sodlinken.jindexer.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,7 +52,7 @@ public class ConfigLoader {
         }
 
         log.info("读取配置文件: {}", configPath);
-        Yaml yaml = new Yaml();
+        Yaml yaml = new Yaml(new SafeConstructor(new LoaderOptions()));
         try (InputStream is = Files.newInputStream(configPath)) {
             Map<String, Object> map = yaml.load(is);
             if (map == null) return;
