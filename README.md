@@ -97,10 +97,11 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 | `find_symbol` | Find symbols (class/method/field) by name, `*` wildcard supported |
 | `find_references` | Find all reference locations for a symbol |
 | `get_call_graph` | Method call graph — callers, callees, or both |
-| `search_code` | Search symbol names and code content |
+| `search_code` | Search symbol names and code content (FTS5 full-text) |
 | `get_file_info` | File details: symbols, code chunks, call relationships |
 | `search_config` | Search config files (YAML / Properties / .env) |
 | `find_dependencies` | Search project dependencies (Maven / Gradle) |
+| `health` | Server health check with status and statistics |
 | `list_projects` | List indexed projects (multi-project mode only) |
 
 ---
@@ -216,32 +217,32 @@ src/main/java/com/sodlinken/jindexer/
 
 ### GitHub Release
 
-发布流程通过 GitHub Actions 自动化，产物包括：
+Release workflow is automated via GitHub Actions:
 
-| 产物 | 说明 |
-|------|------|
-| `java-code-indexer-VERSION.jar` | Fat JAR，需 Java 21+ |
+| Artifact | Description |
+|----------|-------------|
+| `java-code-indexer-VERSION.jar` | Fat JAR, requires Java 21+ |
 | `java-code-indexer-VERSION-linux-amd64.tar.gz` | Linux amd64 Native Image |
 | `java-code-indexer-VERSION-darwin-arm64.tar.gz` | macOS arm64 Native Image |
-| `docker-image-VERSION.tar.gz` | Docker 离线镜像 |
-| `checksums-VERSION.sha256` | SHA-256 校验和 |
+| `docker-image-VERSION.tar.gz` | Docker offline image |
+| `checksums-VERSION.sha256` | SHA-256 checksums |
 
-### 本地构建
+### Local Build
 
 ```bash
-# 构建 Fat JAR + Native Image
+# Build Fat JAR + Native Image
 ./script/release.sh
 
-# 指定版本号
+# Specify version
 ./script/release.sh -v 1.0.0
 
-# 跳过 Native Image
+# Skip Native Image
 ./script/release.sh -v 1.0.0 --skip-native
 ```
 
 ### Fat JAR
 
-构建产物位于 `release/<version>/java-code-indexer-<version>.jar`，需 Java 21+。
+Output at `release/<version>/java-code-indexer-<version>.jar`, requires Java 21+.
 
 ```bash
 java -jar release/1.0.0/java-code-indexer-1.0.0.jar --project-root /path/to/project
@@ -249,7 +250,7 @@ java -jar release/1.0.0/java-code-indexer-1.0.0.jar --project-root /path/to/proj
 
 ### Native Image (GraalVM)
 
-构建产物位于 `release/<version>/jindexer`，无需 JVM，启动即时。
+Output at `release/<version>/jindexer`, no JVM required, instant startup.
 
 ```bash
 ./release/1.0.0/jindexer --project-root /path/to/project --index
@@ -258,11 +259,11 @@ java -jar release/1.0.0/java-code-indexer-1.0.0.jar --project-root /path/to/proj
 ### Docker
 
 ```bash
-# 本地构建并运行
+# Build and run locally
 docker build -t java-code-indexer .
 docker run --rm -v /path/to/project:/project java-code-indexer --project-root /project --index
 
-# 推送到私有 registry
+# Push to private registry
 DOCKER_REGISTRY=your-registry.com ./script/release.sh --push-docker
 ```
 
@@ -286,16 +287,16 @@ java -jar target/java-code-indexer-*-shaded.jar --project-root .
 
 ### Release Workflow
 
-GitHub Actions 自动化发布流程：
+GitHub Actions automated release process:
 
-1. 推送 `v*` 标签或手动触发
-2. 构建 Fat JAR
-3. 构建 Native Image（Linux amd64, macOS arm64）
-4. 构建 Docker 镜像
-5. 创建 GitHub Release 并上传产物
+1. Push `v*` tag or manual trigger
+2. Build Fat JAR
+3. Build Native Image (Linux amd64, macOS arm64)
+4. Build Docker image
+5. Create GitHub Release and upload artifacts
 
 ```bash
-# 创建发布标签
+# Create release tag
 git tag v1.0.0
 git push origin v1.0.0
 ```

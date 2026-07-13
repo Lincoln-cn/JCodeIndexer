@@ -97,10 +97,11 @@ Options:
 | `find_symbol` | 按名称查找符号（类/方法/字段），支持 `*` 通配符 |
 | `find_references` | 查找符号的所有引用位置 |
 | `get_call_graph` | 方法调用图 — 调用者、被调用者、或双向 |
-| `search_code` | 搜索符号名和代码内容 |
+| `search_code` | 搜索符号名和代码内容（FTS5 全文搜索） |
 | `get_file_info` | 文件详情：符号、代码块、调用关系 |
 | `search_config` | 搜索配置文件（YAML / Properties / .env） |
 | `find_dependencies` | 搜索项目依赖（Maven / Gradle） |
+| `health` | 服务器健康检查，返回状态和统计信息 |
 | `list_projects` | 列出已索引项目（仅多项目模式） |
 
 ---
