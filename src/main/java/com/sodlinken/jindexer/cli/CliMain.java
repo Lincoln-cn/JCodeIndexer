@@ -190,6 +190,38 @@ public class CliMain {
             }
         }
 
+        // Top 5 文件（按符号数）
+        @SuppressWarnings("unchecked")
+        var topFiles = (java.util.List<java.util.Map<String, Object>>) detailed.get("top_files");
+        if (topFiles != null && !topFiles.isEmpty()) {
+            System.out.println();
+            System.out.println("Top Files by Symbol Count:");
+            for (var fileStat : topFiles) {
+                System.out.println("  " + fileStat.get("file") + " (" + fileStat.get("symbols") + " symbols)");
+            }
+        }
+
+        // 其他统计
+        System.out.println();
+        System.out.println("Additional Statistics:");
+        System.out.println("  Total Code Lines:     " + detailed.get("total_code_lines"));
+        System.out.println("  Avg Symbols/File:     " + detailed.get("avg_symbols_per_file"));
+
+        // 最近索引时间
+        Object lastIndexed = detailed.get("last_indexed_ago_ms");
+        if (lastIndexed != null) {
+            long agoMs = (Long) lastIndexed;
+            String agoStr;
+            if (agoMs < 60_000) {
+                agoStr = (agoMs / 1000) + "s ago";
+            } else if (agoMs < 3600_000) {
+                agoStr = (agoMs / 60_000) + "m ago";
+            } else {
+                agoStr = (agoMs / 3600_000) + "h ago";
+            }
+            System.out.println("  Last Indexed:        " + agoStr);
+        }
+
         dbManager.close();
     }
 
@@ -228,11 +260,11 @@ public class CliMain {
     }
 
     private static void printVersion() {
-        System.out.println("java-code-indexer v0.6.2");
+        System.out.println("java-code-indexer v0.6.3");
     }
 
     private static void printUsage() {
-        System.out.println("java-code-indexer v0.6.2");
+        System.out.println("java-code-indexer v0.6.3");
         System.out.println();
         System.out.println("Usage: java -jar jindexer.jar [options]");
         System.out.println();

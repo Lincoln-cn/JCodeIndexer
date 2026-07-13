@@ -1058,6 +1058,53 @@ public class StorageService implements AutoCloseable {
             stats.put("dependencies_by_type", depTypes);
         }
 
+        // Top 5 文件（按符号数）
+        try (Statement stmt = db.getConnection().createStatement()) {
+            var rs = stmt.executeQuery("""
+                SELECT file_path, COUNT(*) as symbol_count
+                FROM symbols
+                GROUP BY file_path
+                ORDER BY symbol_count DESC
+                LIMIT 5
+                """);
+            var topFiles = new java.util.ArrayList<Map<String, Object>>();
+            while (rs.next()) {
+                var fileStat = new java.util.LinkedHashMap<String, Object>();
+                fileStat.put("file", rs.getString("file_path"));
+                fileStat.put("symbols", rs.getInt("symbol_count"));
+                topFiles.add(fileStat);
+            }
+            stats.put("top_files", topFiles);
+        }
+
+        // 代码总行数
+        try (Statement stmt = db.getConnection().createStatement()) {
+            var rs = stmt.executeQuery("SELECT SUM(end_line - start_line + 1) as total_lines FROM chunks");
+            if (rs.next()) {
+                stats.put("total_code_lines", rs.getInt("total_lines"));
+            }
+        }
+
+        // 平均每文件符号数
+        try (Statement stmt = db.getConnection().createStatement()) {
+            var rs = stmt.executeQuery("SELECT AVG(symbol_count) as avg FROM file_meta");
+            if (rs.next()) {
+                stats.put("avg_symbols_per_file", Math.round(rs.getDouble("avg") * 10.0) / 10.0);
+            }
+        }
+
+        // 最近索引时间
+        try (Statement stmt = db.getConnection().createStatement()) {
+            var rs = stmt.executeQuery("SELECT MAX(last_indexed_at) as last_indexed FROM file_meta");
+            if (rs.next()) {
+                long lastIndexed = rs.getLong("last_indexed");
+                if (lastIndexed > 0) {
+                    stats.put("last_indexed_at", lastIndexed);
+                    stats.put("last_indexed_ago_ms", System.currentTimeMillis() - lastIndexed);
+                }
+            }
+        }
+
         return stats;
     }
 

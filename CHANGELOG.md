@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.3] - 2026-07-13
+
+### Changed
+- **索引统计增强**: --status 和 health 工具显示更详细信息
+  - Top 5 文件（按符号数）
+  - 代码总行数
+  - 平均每文件符号数
+  - 最近索引时间
+
 ## [0.6.2] - 2026-07-13
 
 ### Changed
