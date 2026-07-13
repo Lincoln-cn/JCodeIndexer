@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-07-13
+
+### Changed
+- **搜索排序优化**: FTS5 符号搜索优先精确匹配 > 类型优先级 > rank
+- **搜索排序优化**: FTS5 代码块搜索按类型排序（CLASS > METHOD > FILE_HEADER > ANNOTATION）
+- **索引统计增强**: --status 和 health 工具显示详细分类统计
+  - 符号按类型统计（CLASS/METHOD/FIELD）
+  - 代码块按类型统计（CLASS/METHOD/FILE_HEADER/ANNOTATION）
+  - 文件按类型统计（java/yaml/properties/xml/gradle/env）
+  - 依赖按类型统计（POM/GRADLE）
+
 ## [0.6.1] - 2026-07-13
 
 ### Added

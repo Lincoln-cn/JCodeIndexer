@@ -193,7 +193,7 @@ public class McpServer {
 
         JsonObject serverInfo = new JsonObject();
         serverInfo.addProperty("name", "java-code-indexer");
-        serverInfo.addProperty("version", "0.6.1");
+        serverInfo.addProperty("version", "0.6.2");
         result.add("serverInfo", serverInfo);
 
         JsonObject capabilities = new JsonObject();
@@ -543,23 +543,17 @@ public class McpServer {
     private Map<String, Object> callHealth(JsonObject args) {
         Map<String, Object> health = new LinkedHashMap<>();
         health.put("status", "ok");
-        health.put("version", "0.6.1");
+        health.put("version", "0.6.2");
         health.put("projects", projects.size());
         health.put("uptime_ms", System.currentTimeMillis() - startTime);
 
-        // 收集每个项目的统计信息
+        // 收集每个项目的详细统计信息
         List<Map<String, Object>> projectStats = new ArrayList<>();
         for (var entry : projects.entrySet()) {
             ProjectContext ctx = entry.getValue();
             try {
-                int[] stats = ctx.storage().getProjectStats();
-                Map<String, Object> stat = new LinkedHashMap<>();
+                Map<String, Object> stat = ctx.storage().getDetailedStats();
                 stat.put("name", entry.getKey());
-                stat.put("symbols", stats[0]);
-                stat.put("references", stats[1]);
-                stat.put("calls", stats[2]);
-                stat.put("chunks", stats[3]);
-                stat.put("files", stats[4]);
                 projectStats.add(stat);
             } catch (Exception e) {
                 Map<String, Object> stat = new LinkedHashMap<>();

@@ -87,37 +87,55 @@ public class StorageService implements AutoCloseable {
      * 支持布尔操作：AND, OR, NOT
      * 支持前缀搜索：term*
      * 支持短语搜索："term1 term2"
+     * 排序：精确匹配 > 类型优先级 > FTS5 rank
      */
     public List<Symbol> searchSymbolsFts(String query, int limit) throws SQLException {
         String ftsQuery = convertToFtsQuery(query);
         String sql = """
             SELECT s.id, s.file_path, s.start_line, s.end_line, s.kind, s.name, s.qualified_name,
-                   s.signature, s.return_type, s.parent_class, s.modifiers, s.javadoc
+                   s.signature, s.return_type, s.parent_class, s.modifiers, s.javadoc,
+                   rank AS fts_rank
             FROM symbols s
             JOIN symbols_fts fts ON s.id = fts.rowid
             WHERE symbols_fts MATCH ?
-            ORDER BY rank
+            ORDER BY
+                CASE WHEN s.name = ? THEN 0
+                     WHEN s.qualified_name = ? THEN 1
+                     ELSE 2 END,
+                CASE s.kind WHEN 'CLASS' THEN 0
+                            WHEN 'METHOD' THEN 1
+                            WHEN 'FIELD' THEN 2 END,
+                rank
             LIMIT ?
             """;
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
             ps.setString(1, ftsQuery);
-            ps.setInt(2, limit);
+            ps.setString(2, query);
+            ps.setString(3, query);
+            ps.setInt(4, limit);
             return mapSymbols(ps);
         }
     }
 
     /**
      * FTS5 全文搜索代码块（性能优化版）
+     * 排序：精确匹配 > 类型优先级 > FTS5 rank
      */
     public List<Chunk> searchChunksFts(String query, int limit) throws SQLException {
         String ftsQuery = convertToFtsQuery(query);
         String sql = """
             SELECT c.id, c.file_path, c.type, c.start_line, c.end_line, c.name,
-                   c.content, c.package_name, c.class_name, c.signature
+                   c.content, c.package_name, c.class_name, c.signature,
+                   rank AS fts_rank
             FROM chunks c
             JOIN chunks_fts fts ON c.id = fts.rowid
             WHERE chunks_fts MATCH ?
-            ORDER BY rank
+            ORDER BY
+                CASE c.type WHEN 'CLASS' THEN 0
+                            WHEN 'METHOD' THEN 1
+                            WHEN 'FILE_HEADER' THEN 2
+                            WHEN 'ANNOTATION' THEN 3 END,
+                rank
             LIMIT ?
             """;
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
@@ -966,6 +984,80 @@ public class StorageService implements AutoCloseable {
                 stats[6] = rs.next() ? rs.getInt(1) : 0;
             }
         }
+        return stats;
+    }
+
+    /**
+     * 获取详细统计信息
+     */
+    public java.util.Map<String, Object> getDetailedStats() throws SQLException {
+        var stats = new java.util.LinkedHashMap<String, Object>();
+
+        // 基本统计
+        int[] basic = getProjectStats();
+        stats.put("symbols", basic[0]);
+        stats.put("references", basic[1]);
+        stats.put("calls", basic[2]);
+        stats.put("chunks", basic[3]);
+        stats.put("files", basic[4]);
+        stats.put("config_entries", basic[5]);
+        stats.put("dependencies", basic[6]);
+
+        // 符号按类型统计
+        try (Statement stmt = db.getConnection().createStatement()) {
+            var rs = stmt.executeQuery("SELECT kind, COUNT(*) as cnt FROM symbols GROUP BY kind ORDER BY cnt DESC");
+            var symbolKinds = new java.util.LinkedHashMap<String, Integer>();
+            while (rs.next()) {
+                symbolKinds.put(rs.getString("kind"), rs.getInt("cnt"));
+            }
+            stats.put("symbols_by_kind", symbolKinds);
+        }
+
+        // 代码块按类型统计
+        try (Statement stmt = db.getConnection().createStatement()) {
+            var rs = stmt.executeQuery("SELECT type, COUNT(*) as cnt FROM chunks GROUP BY type ORDER BY cnt DESC");
+            var chunkTypes = new java.util.LinkedHashMap<String, Integer>();
+            while (rs.next()) {
+                chunkTypes.put(rs.getString("type"), rs.getInt("cnt"));
+            }
+            stats.put("chunks_by_type", chunkTypes);
+        }
+
+        // 文件按扩展名统计
+        try (Statement stmt = db.getConnection().createStatement()) {
+            var rs = stmt.executeQuery("""
+                SELECT
+                    CASE
+                        WHEN file_path LIKE '%.java' THEN 'java'
+                        WHEN file_path LIKE '%.yml' OR file_path LIKE '%.yaml' THEN 'yaml'
+                        WHEN file_path LIKE '%.properties' THEN 'properties'
+                        WHEN file_path LIKE '%.xml' THEN 'xml'
+                        WHEN file_path LIKE '%.gradle' OR file_path LIKE '%.gradle.kts' THEN 'gradle'
+                        WHEN file_path LIKE '%.env' THEN 'env'
+                        ELSE 'other'
+                    END as file_type,
+                    COUNT(*) as cnt
+                FROM file_meta
+                GROUP BY file_type
+                ORDER BY cnt DESC
+                """);
+            var fileTypes = new java.util.LinkedHashMap<String, Integer>();
+            while (rs.next()) {
+                fileTypes.put(rs.getString("file_type"), rs.getInt("cnt"));
+            }
+            stats.put("files_by_type", fileTypes);
+        }
+
+        // 依赖按类型统计
+        try (Statement stmt = db.getConnection().createStatement()) {
+            var rs = stmt.executeQuery("SELECT dep_type, COUNT(*) as cnt FROM dependencies GROUP BY dep_type ORDER BY cnt DESC");
+            var depTypes = new java.util.LinkedHashMap<String, Integer>();
+            while (rs.next()) {
+                depTypes.put(rs.getString("dep_type"), rs.getInt("cnt"));
+            }
+            stats.put("dependencies_by_type", depTypes);
+        }
+
         return stats;
     }
 

@@ -132,17 +132,63 @@ public class CliMain {
         dbManager.initialize();
         StorageService storage = new StorageService(dbManager);
 
-        int[] stats = storage.getProjectStats();
+        var detailed = storage.getDetailedStats();
         System.out.println("=== Index Status ===");
         System.out.println("Project: " + config.getProjectRoot());
         System.out.println("Data Dir: " + config.getDataDir());
-        System.out.println("Symbols: " + stats[0]);
-        System.out.println("References: " + stats[1]);
-        System.out.println("Calls: " + stats[2]);
-        System.out.println("Chunks: " + stats[3]);
-        System.out.println("Files: " + stats[4]);
-        System.out.println("Config Entries: " + stats[5]);
-        System.out.println("Dependencies: " + stats[6]);
+        System.out.println();
+        System.out.println("Core Statistics:");
+        System.out.println("  Symbols:       " + detailed.get("symbols"));
+        System.out.println("  References:    " + detailed.get("references"));
+        System.out.println("  Calls:         " + detailed.get("calls"));
+        System.out.println("  Chunks:        " + detailed.get("chunks"));
+        System.out.println("  Files:         " + detailed.get("files"));
+        System.out.println("  Config Entries: " + detailed.get("config_entries"));
+        System.out.println("  Dependencies:  " + detailed.get("dependencies"));
+
+        // 符号按类型统计
+        @SuppressWarnings("unchecked")
+        var symbolsByKind = (java.util.Map<String, Integer>) detailed.get("symbols_by_kind");
+        if (symbolsByKind != null && !symbolsByKind.isEmpty()) {
+            System.out.println();
+            System.out.println("Symbols by Kind:");
+            for (var entry : symbolsByKind.entrySet()) {
+                System.out.println("  " + entry.getKey() + ": " + entry.getValue());
+            }
+        }
+
+        // 代码块按类型统计
+        @SuppressWarnings("unchecked")
+        var chunksByType = (java.util.Map<String, Integer>) detailed.get("chunks_by_type");
+        if (chunksByType != null && !chunksByType.isEmpty()) {
+            System.out.println();
+            System.out.println("Chunks by Type:");
+            for (var entry : chunksByType.entrySet()) {
+                System.out.println("  " + entry.getKey() + ": " + entry.getValue());
+            }
+        }
+
+        // 文件按类型统计
+        @SuppressWarnings("unchecked")
+        var filesByType = (java.util.Map<String, Integer>) detailed.get("files_by_type");
+        if (filesByType != null && !filesByType.isEmpty()) {
+            System.out.println();
+            System.out.println("Files by Type:");
+            for (var entry : filesByType.entrySet()) {
+                System.out.println("  " + entry.getKey() + ": " + entry.getValue());
+            }
+        }
+
+        // 依赖按类型统计
+        @SuppressWarnings("unchecked")
+        var depsByType = (java.util.Map<String, Integer>) detailed.get("dependencies_by_type");
+        if (depsByType != null && !depsByType.isEmpty()) {
+            System.out.println();
+            System.out.println("Dependencies by Type:");
+            for (var entry : depsByType.entrySet()) {
+                System.out.println("  " + entry.getKey() + ": " + entry.getValue());
+            }
+        }
 
         dbManager.close();
     }
@@ -182,11 +228,11 @@ public class CliMain {
     }
 
     private static void printVersion() {
-        System.out.println("java-code-indexer v0.6.1");
+        System.out.println("java-code-indexer v0.6.2");
     }
 
     private static void printUsage() {
-        System.out.println("java-code-indexer v0.6.1");
+        System.out.println("java-code-indexer v0.6.2");
         System.out.println();
         System.out.println("Usage: java -jar jindexer.jar [options]");
         System.out.println();
