@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-07-13
+
+### Added
+- **health 工具**: MCP 服务器健康检查，返回状态、版本、运行时间、项目统计
+- MCP 工具总数从 8 增加到 9
+
 ## [0.6.0] - 2026-07-13
 
 ### Fixed

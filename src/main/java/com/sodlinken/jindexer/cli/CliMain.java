@@ -182,11 +182,11 @@ public class CliMain {
     }
 
     private static void printVersion() {
-        System.out.println("java-code-indexer v0.6.0");
+        System.out.println("java-code-indexer v0.6.1");
     }
 
     private static void printUsage() {
-        System.out.println("java-code-indexer v0.6.0");
+        System.out.println("java-code-indexer v0.6.1");
         System.out.println();
         System.out.println("Usage: java -jar jindexer.jar [options]");
         System.out.println();
