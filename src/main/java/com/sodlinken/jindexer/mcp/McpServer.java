@@ -193,7 +193,7 @@ public class McpServer {
 
         JsonObject serverInfo = new JsonObject();
         serverInfo.addProperty("name", "java-code-indexer");
-        serverInfo.addProperty("version", "0.7.1");
+        serverInfo.addProperty("version", "0.7.2");
         result.add("serverInfo", serverInfo);
 
         JsonObject capabilities = new JsonObject();
@@ -590,7 +590,7 @@ public class McpServer {
     private Map<String, Object> callHealth(JsonObject args) {
         Map<String, Object> health = new LinkedHashMap<>();
         health.put("status", "ok");
-        health.put("version", "0.7.1");
+        health.put("version", "0.7.2");
         health.put("projects", projects.size());
         health.put("uptime_ms", System.currentTimeMillis() - startTime);
 

@@ -46,6 +46,7 @@ public class CliMain {
         boolean indexMode = false;
         boolean statusMode = false;
         String searchQuery = null;
+        String exportFile = null;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -65,6 +66,11 @@ public class CliMain {
                 case "--search" -> {
                     if (i + 1 < args.length) {
                         searchQuery = args[++i];
+                    }
+                }
+                case "--export" -> {
+                    if (i + 1 < args.length) {
+                        exportFile = args[++i];
                     }
                 }
             }
@@ -92,6 +98,8 @@ public class CliMain {
                 runStatus(config, dbManager);
             } else if (searchQuery != null) {
                 runSearch(config, dbManager, searchQuery);
+            } else if (exportFile != null) {
+                runExport(config, dbManager, exportFile);
             } else {
                 // 启动 MCP 服务
                 startMcpServer(config);
@@ -225,6 +233,28 @@ public class CliMain {
         dbManager.close();
     }
 
+    private static void runExport(Config config, DatabaseManager dbManager, String exportFile) throws Exception {
+        dbManager.initialize();
+        StorageService storage = new StorageService(dbManager);
+
+        System.out.println("Exporting index to: " + exportFile);
+
+        var data = storage.exportAll();
+        data.put("version", "0.7.2");
+        data.put("exported_at", java.time.Instant.now().toString());
+        data.put("project_root", config.getProjectRoot().toString());
+
+        var gson = new com.google.gson.GsonBuilder().setPrettyPrinting().create();
+        String json = gson.toJson(data);
+
+        java.nio.file.Files.writeString(java.nio.file.Path.of(exportFile), json);
+
+        long fileSize = java.nio.file.Files.size(java.nio.file.Path.of(exportFile));
+        System.out.println("Export complete: " + exportFile + " (" + fileSize + " bytes)");
+
+        dbManager.close();
+    }
+
     private static void runSearch(Config config, DatabaseManager dbManager, String query) throws Exception {
         dbManager.initialize();
         StorageService storage = new StorageService(dbManager);
@@ -260,11 +290,11 @@ public class CliMain {
     }
 
     private static void printVersion() {
-        System.out.println("java-code-indexer v0.7.1");
+        System.out.println("java-code-indexer v0.7.2");
     }
 
     private static void printUsage() {
-        System.out.println("java-code-indexer v0.7.1");
+        System.out.println("java-code-indexer v0.7.2");
         System.out.println();
         System.out.println("Usage: java -jar jindexer.jar [options]");
         System.out.println();
@@ -275,6 +305,7 @@ public class CliMain {
         System.out.println("  --index                索引项目（提取符号/引用/调用关系）");
         System.out.println("  --status               显示索引统计信息");
         System.out.println("  --search <query>       直接搜索（无需启动 MCP 服务）");
+        System.out.println("  --export <file>        导出索引数据为 JSON 文件");
         System.out.println("  --version              显示版本号");
         System.out.println("  --help, -h             显示帮助");
         System.out.println();

@@ -1108,6 +1108,69 @@ public class StorageService implements AutoCloseable {
         return stats;
     }
 
+    /**
+     * 导出所有索引数据为 Map
+     */
+    public java.util.Map<String, Object> exportAll() throws SQLException {
+        var data = new java.util.LinkedHashMap<String, Object>();
+
+        // 导出符号
+        data.put("symbols", listAllSymbols(100000));
+
+        // 导出引用
+        try (Statement stmt = db.getConnection().createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT id, symbol_id, from_file, from_line, context FROM code_references")) {
+            var refs = new java.util.ArrayList<Reference>();
+            while (rs.next()) {
+                refs.add(new Reference(rs.getLong("id"), rs.getLong("symbol_id"),
+                    rs.getString("from_file"), rs.getInt("from_line"), rs.getString("context")));
+            }
+            data.put("references", refs);
+        }
+
+        // 导出调用关系
+        try (Statement stmt = db.getConnection().createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT id, caller_method, caller_file, caller_line, callee_method, callee_file FROM calls")) {
+            var calls = new java.util.ArrayList<Call>();
+            while (rs.next()) {
+                calls.add(new Call(rs.getLong("id"), rs.getString("caller_method"),
+                    rs.getString("caller_file"), rs.getInt("caller_line"),
+                    rs.getString("callee_method"), rs.getString("callee_file")));
+            }
+            data.put("calls", calls);
+        }
+
+        // 导出代码块
+        data.put("chunks", listAllChunks(100000));
+
+        // 导出配置
+        try (Statement stmt = db.getConnection().createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT id, file_path, line, key, value, config_type, content FROM config_entries")) {
+            var configs = new java.util.ArrayList<ConfigEntry>();
+            while (rs.next()) {
+                configs.add(new ConfigEntry(rs.getLong("id"), rs.getString("file_path"),
+                    rs.getInt("line"), rs.getString("key"), rs.getString("value"),
+                    ConfigEntry.ConfigType.valueOf(rs.getString("config_type")), rs.getString("content")));
+            }
+            data.put("config_entries", configs);
+        }
+
+        // 导出依赖
+        try (Statement stmt = db.getConnection().createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT id, file_path, line, group_id, artifact_id, version, scope, dep_type, classifier FROM dependencies")) {
+            var deps = new java.util.ArrayList<Dependency>();
+            while (rs.next()) {
+                deps.add(new Dependency(rs.getLong("id"), rs.getString("file_path"),
+                    rs.getInt("line"), rs.getString("group_id"), rs.getString("artifact_id"),
+                    rs.getString("version"), rs.getString("scope"),
+                    Dependency.DepType.valueOf(rs.getString("dep_type")), rs.getString("classifier")));
+            }
+            data.put("dependencies", deps);
+        }
+
+        return data;
+    }
+
     // ==================== Mapping Helpers ====================
 
     private List<Symbol> mapSymbols(PreparedStatement ps) throws SQLException {

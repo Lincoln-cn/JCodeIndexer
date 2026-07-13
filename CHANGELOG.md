@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-07-13
+
+### Added
+- **索引导出**: 新增 `--export <file>` 命令，将索引数据导出为 JSON 文件
+  - 导出所有符号、引用、调用、代码块、配置、依赖
+  - 包含版本号、导出时间、项目路径
+  - 支持 pretty-print 格式化输出
+
+### Testing
+- 72 个单元测试全部通过
+
 ## [0.7.1] - 2026-07-13
 
 ### Added
