@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-07-13
+
+### Added
+- **搜索结果高亮**: search_code 返回匹配关键词的位置信息
+  - 符号名高亮 (highlights 字段)
+  - 代码块内容高亮 (highlights 字段)
+  - 支持大小写不敏感匹配
+
 ## [0.6.3] - 2026-07-13
 
 ### Changed

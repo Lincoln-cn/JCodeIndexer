@@ -193,7 +193,7 @@ public class McpServer {
 
         JsonObject serverInfo = new JsonObject();
         serverInfo.addProperty("name", "java-code-indexer");
-        serverInfo.addProperty("version", "0.6.3");
+        serverInfo.addProperty("version", "0.7.0");
         result.add("serverInfo", serverInfo);
 
         JsonObject capabilities = new JsonObject();
@@ -442,19 +442,29 @@ public class McpServer {
         SearchResult result = ctx.searchProvider().search(query, limit);
         return Map.of(
             "project", resolveProjectName(args),
-            "symbols", result.symbols().stream().map(s -> Map.of(
-                "name", s.name(),
-                "qualified_name", s.qualifiedName(),
-                "kind", s.kind().name(),
-                "file", s.filePath(),
-                "line", s.startLine()
-            )).toList(),
-            "chunks", result.chunks().stream().map(c -> Map.of(
-                "file", c.filePath(),
-                "name", c.name() != null ? c.name() : "",
-                "type", c.type().name(),
-                "line", c.startLine()
-            )).toList(),
+            "symbols", result.symbols().stream().map(s -> {
+                Map<String, Object> symbolMap = new LinkedHashMap<>();
+                symbolMap.put("name", s.name());
+                symbolMap.put("qualified_name", s.qualifiedName());
+                symbolMap.put("kind", s.kind().name());
+                symbolMap.put("file", s.filePath());
+                symbolMap.put("line", s.startLine());
+                // 添加高亮信息
+                symbolMap.put("highlights", computeHighlights(s.name(), query));
+                return symbolMap;
+            }).toList(),
+            "chunks", result.chunks().stream().map(c -> {
+                Map<String, Object> chunkMap = new LinkedHashMap<>();
+                chunkMap.put("file", c.filePath());
+                chunkMap.put("name", c.name() != null ? c.name() : "");
+                chunkMap.put("type", c.type().name());
+                chunkMap.put("line", c.startLine());
+                // 为代码块内容添加高亮
+                if (c.content() != null) {
+                    chunkMap.put("highlights", computeHighlights(c.content(), query));
+                }
+                return chunkMap;
+            }).toList(),
             "total_hits", result.totalHits(),
             "query_time_ms", result.queryTimeMs()
         );
@@ -540,10 +550,38 @@ public class McpServer {
 
     // ==================== Helpers ====================
 
+    /**
+     * 计算文本中匹配关键词的位置，用于高亮显示
+     * 返回匹配的起止位置列表
+     */
+    private List<Map<String, Object>> computeHighlights(String text, String query) {
+        if (text == null || query == null || query.isEmpty() || "*".equals(query)) {
+            return List.of();
+        }
+
+        List<Map<String, Object>> highlights = new ArrayList<>();
+        String lowerText = text.toLowerCase();
+        String lowerQuery = query.toLowerCase();
+        int startPos = 0;
+
+        while (startPos < lowerText.length()) {
+            int found = lowerText.indexOf(lowerQuery, startPos);
+            if (found == -1) break;
+
+            highlights.add(Map.of(
+                "start", found,
+                "end", found + query.length()
+            ));
+            startPos = found + query.length();
+        }
+
+        return highlights;
+    }
+
     private Map<String, Object> callHealth(JsonObject args) {
         Map<String, Object> health = new LinkedHashMap<>();
         health.put("status", "ok");
-        health.put("version", "0.6.3");
+        health.put("version", "0.7.0");
         health.put("projects", projects.size());
         health.put("uptime_ms", System.currentTimeMillis() - startTime);
 
