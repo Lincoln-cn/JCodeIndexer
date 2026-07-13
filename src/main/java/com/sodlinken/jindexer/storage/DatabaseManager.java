@@ -30,14 +30,40 @@ public class DatabaseManager implements AutoCloseable {
     }
 
     /**
-     * 初始化数据库：建立连接 + 执行 DDL
+     * 初始化数据库：建立连接 + 执行 DDL + 完整性检查
      */
     public synchronized void initialize() throws SQLException {
-        if (connection != null && !connection.isClosed()) {
-            return;
+        if (connection != null) {
+            try {
+                if (!connection.isClosed()) return;
+            } catch (SQLException e) {
+                log.warn("检查连接状态失败，重新初始化", e);
+            }
         }
+
         log.info("初始化数据库: {}", dbUrl);
-        connection = DriverManager.getConnection(dbUrl);
+        try {
+            connection = DriverManager.getConnection(dbUrl);
+        } catch (SQLException e) {
+            // 数据库可能损坏，尝试删除重建
+            log.warn("数据库连接失败，尝试删除重建: {}", e.getMessage());
+            try {
+                if (connection != null) connection.close();
+            } catch (SQLException ignored) {}
+            connection = null;
+
+            // 删除损坏的数据库文件
+            try {
+                String dbPathStr = dbUrl.substring("jdbc:sqlite:".length());
+                Files.deleteIfExists(Path.of(dbPathStr));
+                Files.deleteIfExists(Path.of(dbPathStr + "-wal"));
+                Files.deleteIfExists(Path.of(dbPathStr + "-shm"));
+                log.info("已删除损坏的数据库文件");
+            } catch (Exception ignored) {}
+
+            // 重新连接
+            connection = DriverManager.getConnection(dbUrl);
+        }
 
         // PRAGMA 必须在事务外执行
         try (Statement stmt = connection.createStatement()) {
@@ -49,6 +75,17 @@ public class DatabaseManager implements AutoCloseable {
             stmt.execute("PRAGMA mmap_size=268435456");
         }
 
+        // 完整性检查
+        try (Statement stmt = connection.createStatement()) {
+            var rs = stmt.executeQuery("PRAGMA integrity_check");
+            if (rs.next()) {
+                String result = rs.getString(1);
+                if (!"ok".equals(result)) {
+                    log.warn("数据库完整性检查异常: {}", result);
+                }
+            }
+        }
+
         // DDL 在事务内执行
         connection.setAutoCommit(false);
         try (Statement stmt = connection.createStatement()) {
@@ -58,6 +95,15 @@ public class DatabaseManager implements AutoCloseable {
                 }
             }
             connection.commit();
+        } catch (Exception e) {
+            try {
+                connection.rollback();
+            } catch (SQLException rollbackEx) {
+                e.addSuppressed(rollbackEx);
+            }
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
         }
         log.info("数据库初始化完成");
     }
@@ -68,6 +114,13 @@ public class DatabaseManager implements AutoCloseable {
     public Connection getConnection() {
         if (connection == null) {
             throw new IllegalStateException("数据库未初始化，请先调用 initialize()");
+        }
+        try {
+            if (connection.isClosed()) {
+                throw new IllegalStateException("数据库连接已关闭，请重新调用 initialize()");
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("检查数据库连接状态失败", e);
         }
         return connection;
     }
@@ -83,11 +136,20 @@ public class DatabaseManager implements AutoCloseable {
             T result = action.execute(conn);
             conn.commit();
             return result;
-        } catch (SQLException e) {
-            conn.rollback();
+        } catch (Exception e) {
+            try {
+                conn.rollback();
+            } catch (SQLException rollbackEx) {
+                log.error("事务回滚失败", rollbackEx);
+                e.addSuppressed(rollbackEx);
+            }
             throw e;
         } finally {
-            conn.setAutoCommit(origAutoCommit);
+            try {
+                conn.setAutoCommit(origAutoCommit);
+            } catch (SQLException e) {
+                log.error("恢复 autoCommit 失败", e);
+            }
         }
     }
 
@@ -112,6 +174,7 @@ public class DatabaseManager implements AutoCloseable {
             } catch (SQLException e) {
                 log.error("关闭数据库连接失败", e);
             }
+            connection = null;
         }
     }
 }

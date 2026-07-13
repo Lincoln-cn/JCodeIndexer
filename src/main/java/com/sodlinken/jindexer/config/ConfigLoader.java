@@ -68,26 +68,30 @@ public class ConfigLoader {
         if (map.containsKey("indexing")) {
             Map<String, Object> indexing = (Map<String, Object>) map.get("indexing");
             if (indexing.containsKey("threads")) {
-                config.setIndexingThreads(((Number) indexing.get("threads")).intValue());
+                config.setIndexingThreads(toInt(indexing.get("threads"), 4));
             }
             if (indexing.containsKey("extract_javadoc")) {
-                config.setExtractJavadoc((Boolean) indexing.get("extract_javadoc"));
+                config.setExtractJavadoc(toBool(indexing.get("extract_javadoc"), false));
             }
             if (indexing.containsKey("follow_symlinks")) {
-                config.setFollowSymlinks((Boolean) indexing.get("follow_symlinks"));
+                config.setFollowSymlinks(toBool(indexing.get("follow_symlinks"), false));
             }
             if (indexing.containsKey("max_file_size_kb")) {
-                config.setMaxFileSizeKB(((Number) indexing.get("max_file_size_kb")).intValue());
+                config.setMaxFileSizeKB(toInt(indexing.get("max_file_size_kb"), 512));
             }
         }
 
         if (map.containsKey("data_dir")) {
             String dataDirStr = (String) map.get("data_dir");
-            Path dataDirPath = Path.of(dataDirStr);
-            if (!dataDirPath.isAbsolute()) {
-                dataDirPath = config.getProjectRoot().resolve(dataDirPath);
+            try {
+                Path dataDirPath = Path.of(dataDirStr);
+                if (!dataDirPath.isAbsolute()) {
+                    dataDirPath = config.getProjectRoot().resolve(dataDirPath);
+                }
+                config.setDataDir(dataDirPath);
+            } catch (Exception e) {
+                log.warn("无效的数据目录路径: {}", dataDirStr);
             }
-            config.setDataDir(dataDirPath);
         }
 
         if (map.containsKey("storage")) {
@@ -139,5 +143,21 @@ public class ConfigLoader {
         if (logLevel != null && !logLevel.isBlank()) {
             config.setLogLevel(logLevel);
         }
+    }
+
+    private static int toInt(Object value, int defaultValue) {
+        if (value instanceof Number n) return n.intValue();
+        if (value instanceof String s) {
+            try { return Integer.parseInt(s); } catch (NumberFormatException e) { /* ignore */ }
+        }
+        return defaultValue;
+    }
+
+    private static boolean toBool(Object value, boolean defaultValue) {
+        if (value instanceof Boolean b) return b;
+        if (value instanceof String s) {
+            return Boolean.parseBoolean(s);
+        }
+        return defaultValue;
     }
 }

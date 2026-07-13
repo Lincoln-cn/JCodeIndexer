@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-13
+
+### Fixed
+- **DatabaseManager 事务安全**: 非 SQL 异常时正确回滚事务，DDL 失败时恢复 autoCommit
+- **DatabaseManager 连接状态**: 检查连接是否已关闭，损坏时自动重建
+- **DatabaseManager 完整性检查**: 初始化时执行 PRAGMA integrity_check
+- **ConfigLoader 类型安全**: YAML 值类型错误时优雅降级（不再抛出 ClassCastException）
+- **ConfigLoader 路径验证**: 非法路径字符时给出警告而非崩溃
+- **McpServer OOM 保护**: Content-Length 超过 10MB 时拒绝并跳过
+- **CliMain 错误处理**: 索引错误时返回非零退出码
+
+### Changed
+- 版本号更新为 0.6.0
+- DatabaseManager.close() 现在将 connection 设为 null
+
 ## [0.5.0] - 2026-07-13
 
 ### Added

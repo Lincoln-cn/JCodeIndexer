@@ -97,7 +97,7 @@ public class CliMain {
                 startMcpServer(config);
             }
         } catch (Exception e) {
-            log.error("执行失败", e);
+            log.error("执行失败: {}", e.getMessage());
             System.exit(1);
         }
     }
@@ -120,8 +120,9 @@ public class CliMain {
         IndexResult result = indexer.index(progress);
 
         if (!result.errors().isEmpty()) {
-            System.out.println("Errors:");
+            System.out.println("Errors (" + result.errors().size() + "):");
             result.errors().forEach(e -> System.out.println("  - " + e));
+            System.exit(1);
         }
 
         dbManager.close();
@@ -181,11 +182,11 @@ public class CliMain {
     }
 
     private static void printVersion() {
-        System.out.println("java-code-indexer v0.5.0");
+        System.out.println("java-code-indexer v0.6.0");
     }
 
     private static void printUsage() {
-        System.out.println("java-code-indexer v0.5.0");
+        System.out.println("java-code-indexer v0.6.0");
         System.out.println();
         System.out.println("Usage: java -jar jindexer.jar [options]");
         System.out.println();

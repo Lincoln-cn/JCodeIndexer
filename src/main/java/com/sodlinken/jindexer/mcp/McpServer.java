@@ -121,6 +121,19 @@ public class McpServer {
                 // 检查是否为 Content-Length 头
                 if (trimmed.toLowerCase().startsWith("content-length:")) {
                     int contentLength = Integer.parseInt(trimmed.substring(15).trim());
+                    // 防止 OOM：限制最大消息大小为 10MB
+                    if (contentLength > 10 * 1024 * 1024) {
+                        log.warn("消息过大: {} bytes，跳过", contentLength);
+                        // 读取并丢弃
+                        byte[] skip = new byte[Math.min(contentLength, 4096)];
+                        int remaining = contentLength;
+                        while (remaining > 0) {
+                            int read = dataIn.read(skip, 0, Math.min(remaining, skip.length));
+                            if (read == -1) break;
+                            remaining -= read;
+                        }
+                        return null;
+                    }
                     // 读取剩余的头（跳过空行分隔符）
                     String headerLine;
                     while ((headerLine = dataIn.readLine()) != null) {
@@ -179,7 +192,7 @@ public class McpServer {
 
         JsonObject serverInfo = new JsonObject();
         serverInfo.addProperty("name", "java-code-indexer");
-        serverInfo.addProperty("version", "0.5.0");
+        serverInfo.addProperty("version", "0.6.0");
         result.add("serverInfo", serverInfo);
 
         JsonObject capabilities = new JsonObject();
