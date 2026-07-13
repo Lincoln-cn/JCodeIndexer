@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-07-13
+
+### Added
+- **ChunkerTest** (6 tests): 小类整体切分、大类头部提取、方法切分、文件头、Record 类型、包名提取
+- **JavaParserAdapterTest** (7 tests): 类/方法/字段符号提取、引用提取、调用关系、空文件、语法错误
+- **McpE2ETest** (3 tests): 改为 JUnit 格式，数据库统计、符号搜索、空库搜索
+- **CLI 增强**: --version, --status, --search 命令
+- **FTS5 布尔搜索**: `Config AND Loader` 正常工作
+- **Indexer 性能优化**: 逐条查询替代全量加载 10000 符号
+
+### Testing
+- 单元测试从 38 增加到 54 个，全部通过
+- ChunkerTest: 6 个测试覆盖所有切分场景
+- JavaParserAdapterTest: 7 个测试覆盖核心解析逻辑
+- McpE2ETest: 改为 JUnit 格式，可被 `mvn test` 执行
+
 ## [0.4.0] - 2026-07-12
 
 ### Added
