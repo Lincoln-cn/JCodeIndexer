@@ -193,7 +193,7 @@ public class McpServer {
 
         JsonObject serverInfo = new JsonObject();
         serverInfo.addProperty("name", "java-code-indexer");
-        serverInfo.addProperty("version", "0.7.0");
+        serverInfo.addProperty("version", "0.7.1");
         result.add("serverInfo", serverInfo);
 
         JsonObject capabilities = new JsonObject();
@@ -297,6 +297,14 @@ public class McpServer {
         Map<String, Object> healthParams = new LinkedHashMap<>();
         toolsArray.add(createTool("health", "检查服务器健康状态和索引统计", healthParams));
 
+        // 11. search_all_projects（多项目搜索，仅多项目模式下可用）
+        if (multiProject) {
+            Map<String, Object> searchAllParams = new LinkedHashMap<>();
+            searchAllParams.put("query", Map.of("type", "string", "description", "搜索关键词"));
+            searchAllParams.put("limit", Map.of("type", "integer", "description", "每个项目的最大返回数", "default", 10));
+            toolsArray.add(createTool("search_all_projects", "跨所有项目搜索，返回每个项目的结果", searchAllParams));
+        }
+
         JsonObject result = new JsonObject();
         result.add("tools", toolsArray);
         sendResult(id, result);
@@ -317,6 +325,7 @@ public class McpServer {
                 case "search_config" -> callSearchConfig(arguments);
                 case "find_dependencies" -> callFindDependencies(arguments);
                 case "health" -> callHealth(arguments);
+                case "search_all_projects" -> callSearchAllProjects(arguments);
                 default -> Map.of("error", "Unknown tool: " + toolName);
             };
             sendToolResult(id, result);
@@ -581,7 +590,7 @@ public class McpServer {
     private Map<String, Object> callHealth(JsonObject args) {
         Map<String, Object> health = new LinkedHashMap<>();
         health.put("status", "ok");
-        health.put("version", "0.7.0");
+        health.put("version", "0.7.1");
         health.put("projects", projects.size());
         health.put("uptime_ms", System.currentTimeMillis() - startTime);
 
@@ -602,6 +611,46 @@ public class McpServer {
         }
         health.put("project_stats", projectStats);
         return health;
+    }
+
+    private Map<String, Object> callSearchAllProjects(JsonObject args) throws Exception {
+        String query = args.get("query").getAsString();
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 10;
+
+        List<Map<String, Object>> projectResults = new ArrayList<>();
+        int totalHits = 0;
+
+        for (var entry : projects.entrySet()) {
+            ProjectContext ctx = entry.getValue();
+            SearchResult result = ctx.searchProvider().search(query, limit);
+
+            Map<String, Object> projectResult = new LinkedHashMap<>();
+            projectResult.put("project", entry.getKey());
+            projectResult.put("symbols", result.symbols().stream().map(s -> Map.of(
+                "name", s.name(),
+                "qualified_name", s.qualifiedName(),
+                "kind", s.kind().name(),
+                "file", s.filePath(),
+                "line", s.startLine()
+            )).toList());
+            projectResult.put("chunks", result.chunks().stream().map(c -> {
+                Map<String, Object> chunkMap = new LinkedHashMap<>();
+                chunkMap.put("file", c.filePath());
+                chunkMap.put("name", c.name() != null ? c.name() : "");
+                chunkMap.put("type", c.type().name());
+                chunkMap.put("line", c.startLine());
+                return chunkMap;
+            }).toList());
+            projectResult.put("total_hits", result.totalHits());
+
+            projectResults.add(projectResult);
+            totalHits += result.totalHits();
+        }
+
+        return Map.of(
+            "results", projectResults,
+            "total_hits", totalHits
+        );
     }
 
     private String resolveProjectName(JsonObject args) {

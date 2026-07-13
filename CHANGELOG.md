@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-07-13
+
+### Added
+- **多项目搜索**: 新增 `search_all_projects` 工具（仅多项目模式可用）
+  - 跨所有已索引项目搜索
+  - 返回每个项目的结果，包含 project 标识
+  - 支持 limit 参数控制每个项目的返回数量
+
 ## [0.7.0] - 2026-07-13
 
 ### Added
