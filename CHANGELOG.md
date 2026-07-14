@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-07-13
+
+### Added
+- **Scala 解析器**: 新增 ScalaParserAdapter
+  - 支持 class, case class, object, trait
+  - 支持函数和值声明
+  - 支持继承和 trait 实现
+  - 支持注解提取
+- **新增测试**: 12 个 Scala 解析测试
+
+### Testing
+- 306 个测试全部通过
+
 ## [1.3.1] - 2026-07-13
 
 ### Added
