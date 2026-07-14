@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-07-13
+
+### Added
+- **Scala 支持准备**: Symbol 新增 Scala 特有字段
+  - isTrait: trait 标记
+  - isCaseClass: case class 标记
+- **数据库迁移**: 自动添加 Scala 字段
+
+### Testing
+- 294 个测试全部通过
+
 ## [1.3.0] - 2026-07-13
 
 ### Added
