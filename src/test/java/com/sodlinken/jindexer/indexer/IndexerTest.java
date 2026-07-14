@@ -465,6 +465,51 @@ class IndexerTest {
         assertFalse(chunks.isEmpty());
     }
 
+    @Test
+    void indexKotlinFile() throws Exception {
+        createFile("UserService.kt", """
+            package com.example
+
+            class UserService {
+                fun save() {}
+                fun find(id: Long) {}
+            }
+            """);
+
+        IndexResult result = indexer.index();
+
+        assertEquals(1, result.totalFiles());
+
+        // Verify symbols were indexed
+        List<Symbol> symbols = storage.findSymbolsByFile("UserService.kt");
+        assertFalse(symbols.isEmpty());
+    }
+
+    @Test
+    void indexKotlinDataClass() throws Exception {
+        createFile("User.kt", """
+            package com.example
+
+            data class User(
+                val name: String,
+                val age: Int
+            )
+            """);
+
+        indexer.index();
+
+        List<Symbol> symbols = storage.findSymbolsByFile("User.kt");
+        assertFalse(symbols.isEmpty());
+
+        Symbol userClass = symbols.stream()
+            .filter(s -> s.kind() == Symbol.SymbolKind.CLASS)
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(userClass);
+        assertTrue(userClass.isDataClass());
+    }
+
     // ==================== Helper Methods ====================
 
     private Path createJavaFile(String fileName, String content) throws Exception {

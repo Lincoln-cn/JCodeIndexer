@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2026-07-13
+
+### Added
+- **Indexer Kotlin 集成**: Indexer 现在支持 Kotlin 文件索引
+  - 自动扫描 .kt/.kts 文件
+  - 使用 KotlinParserAdapter 解析
+  - 支持增量索引和 diff 策略
+- **新增测试**: 2 个 Indexer Kotlin 测试
+
+### Testing
+- 260 个测试全部通过
+
 ## [1.1.2] - 2026-07-13
 
 ### Added
