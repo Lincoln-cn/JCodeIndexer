@@ -352,4 +352,81 @@ class McpToolEdgeTest {
         db.close();
         assertThrows(IllegalStateException.class, () -> db.getConnection());
     }
+
+    // ==================== find_implementations Tests ====================
+
+    @Test
+    void findImplementationsByInterface() throws Exception {
+        storage.insertSymbol(new Symbol(0, "UserDto.java", 1, 10,
+            Symbol.SymbolKind.CLASS, "UserDto", "com.app.UserDto",
+            "class UserDto", null, null, 1, null,
+            null, List.of("java.io.Serializable")));
+
+        storage.insertSymbol(new Symbol(0, "OrderDto.java", 1, 10,
+            Symbol.SymbolKind.CLASS, "OrderDto", "com.app.OrderDto",
+            "class OrderDto", null, null, 1, null,
+            null, List.of("java.io.Serializable")));
+
+        List<Symbol> results = storage.findImplementations("Serializable", 10);
+        assertEquals(2, results.size());
+    }
+
+    @Test
+    void findImplementationsNoMatch() throws Exception {
+        List<Symbol> results = storage.findImplementations("NonExistent", 10);
+        assertTrue(results.isEmpty());
+    }
+
+    // ==================== find_overrides Tests ====================
+
+    @Test
+    void findOverridesMethod() throws Exception {
+        // 插入父类
+        storage.insertSymbol(new Symbol(0, "BaseService.java", 1, 10,
+            Symbol.SymbolKind.CLASS, "BaseService", "com.app.BaseService",
+            "class BaseService", null, null, 1, null, null, null));
+
+        // 插入子类
+        storage.insertSymbol(new Symbol(0, "UserService.java", 1, 20,
+            Symbol.SymbolKind.CLASS, "UserService", "com.app.UserService",
+            "class UserService", null, null, 1, null,
+            "BaseService", null));
+
+        // 插入子类方法
+        storage.insertSymbol(new Symbol(0, "UserService.java", 10, 15,
+            Symbol.SymbolKind.METHOD, "save", "com.app.UserService.save",
+            "void save()", "void", "UserService", 1, null, null, null));
+
+        List<Symbol> results = storage.findOverrides("save", "BaseService", 10);
+        assertEquals(1, results.size());
+        assertEquals("com.app.UserService.save", results.getFirst().qualifiedName());
+    }
+
+    @Test
+    void findOverridesNoMatch() throws Exception {
+        List<Symbol> results = storage.findOverrides("nonexistent", "NonExistent", 10);
+        assertTrue(results.isEmpty());
+    }
+
+    // ==================== find_usages Tests ====================
+
+    @Test
+    void findFieldUsages() throws Exception {
+        // 插入字段
+        long fieldId = storage.insertSymbol(new Symbol(0, "UserService.java", 5, 5,
+            Symbol.SymbolKind.FIELD, "name", "com.app.UserService.name",
+            "String name", "String", "UserService", 1, null, null, null));
+
+        // 插入引用
+        storage.insertReference(new Reference(0, fieldId, "Controller.java", 20, "userService.name"));
+
+        var usages = storage.findFieldUsages("com.app.UserService.name", 10);
+        assertEquals(1, usages.size());
+    }
+
+    @Test
+    void findFieldUsagesNoMatch() throws Exception {
+        var usages = storage.findFieldUsages("nonexistent.field", 10);
+        assertTrue(usages.isEmpty());
+    }
 }

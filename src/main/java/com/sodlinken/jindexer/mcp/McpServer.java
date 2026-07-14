@@ -305,6 +305,28 @@ public class McpServer {
             toolsArray.add(createTool("search_all_projects", "跨所有项目搜索，返回每个项目的结果", searchAllParams));
         }
 
+        // 12. find_implementations（查找接口实现）
+        Map<String, Object> findImplParams = new LinkedHashMap<>();
+        findImplParams.put("interface_name", Map.of("type", "string", "description", "接口名称或限定名"));
+        findImplParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) findImplParams.put("project", projectParam);
+        toolsArray.add(createTool("find_implementations", "查找接口的所有实现类（支持直接和间接实现）", findImplParams));
+
+        // 13. find_overrides（查找方法重写）
+        Map<String, Object> findOverridesParams = new LinkedHashMap<>();
+        findOverridesParams.put("method_name", Map.of("type", "string", "description", "方法名"));
+        findOverridesParams.put("class_name", Map.of("type", "string", "description", "父类限定名"));
+        findOverridesParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) findOverridesParams.put("project", projectParam);
+        toolsArray.add(createTool("find_overrides", "查找方法的所有重写实现（包括子类重写）", findOverridesParams));
+
+        // 14. find_usages（查找字段使用）
+        Map<String, Object> findUsagesParams = new LinkedHashMap<>();
+        findUsagesParams.put("field_name", Map.of("type", "string", "description", "字段限定名"));
+        findUsagesParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 50));
+        if (multiProject) findUsagesParams.put("project", projectParam);
+        toolsArray.add(createTool("find_usages", "查找字段/变量的所有使用位置", findUsagesParams));
+
         JsonObject result = new JsonObject();
         result.add("tools", toolsArray);
         sendResult(id, result);
@@ -326,6 +348,9 @@ public class McpServer {
                 case "find_dependencies" -> callFindDependencies(arguments);
                 case "health" -> callHealth(arguments);
                 case "search_all_projects" -> callSearchAllProjects(arguments);
+                case "find_implementations" -> callFindImplementations(arguments);
+                case "find_overrides" -> callFindOverrides(arguments);
+                case "find_usages" -> callFindUsages(arguments);
                 default -> Map.of("error", "Unknown tool: " + toolName);
             };
             sendToolResult(id, result);
@@ -554,6 +579,74 @@ public class McpServer {
                 "classifier", d.classifier() != null ? d.classifier() : ""
             )).toList(),
             "total", deps.size()
+        );
+    }
+
+    private Map<String, Object> callFindImplementations(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String interfaceName = args.get("interface_name").getAsString();
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 20;
+
+        var implementations = storage.findImplementations(interfaceName, limit);
+        return Map.of(
+            "project", resolveProjectName(args),
+            "interface", interfaceName,
+            "implementations", implementations.stream().map(s -> Map.of(
+                "id", s.id(),
+                "name", s.name(),
+                "qualified_name", s.qualifiedName(),
+                "file", s.filePath(),
+                "line", s.startLine(),
+                "super_class", s.superClass() != null ? s.superClass() : "",
+                "interfaces", s.interfaces() != null ? s.interfaces() : List.of()
+            )).toList(),
+            "total", implementations.size()
+        );
+    }
+
+    private Map<String, Object> callFindOverrides(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String methodName = args.get("method_name").getAsString();
+        String className = args.get("class_name").getAsString();
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 20;
+
+        var overrides = storage.findOverrides(methodName, className, limit);
+        return Map.of(
+            "project", resolveProjectName(args),
+            "method", methodName,
+            "parent_class", className,
+            "overrides", overrides.stream().map(s -> Map.of(
+                "id", s.id(),
+                "name", s.name(),
+                "qualified_name", s.qualifiedName(),
+                "file", s.filePath(),
+                "line", s.startLine(),
+                "signature", s.signature() != null ? s.signature() : "",
+                "return_type", s.returnType() != null ? s.returnType() : ""
+            )).toList(),
+            "total", overrides.size()
+        );
+    }
+
+    private Map<String, Object> callFindUsages(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String fieldName = args.get("field_name").getAsString();
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 50;
+
+        var usages = storage.findFieldUsages(fieldName, limit);
+        return Map.of(
+            "project", resolveProjectName(args),
+            "field", fieldName,
+            "usages", usages.stream().map(r -> Map.of(
+                "id", r.id(),
+                "file", r.fromFile(),
+                "line", r.fromLine(),
+                "context", r.context() != null ? r.context() : ""
+            )).toList(),
+            "total", usages.size()
         );
     }
 
