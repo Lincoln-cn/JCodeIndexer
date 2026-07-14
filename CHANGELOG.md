@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-07-13
+
+### Added
+- **继承关系查询**: StorageService 新增 3 个查询方法
+  - `findImplementations`: 查找接口的所有实现类
+  - `findOverrides`: 查找方法的所有重写
+  - `findFieldUsages`: 查找字段的所有使用位置
+- **新增测试**: 8 个继承查询测试
+
 ## [1.0.2] - 2026-07-13
 
 ### Added

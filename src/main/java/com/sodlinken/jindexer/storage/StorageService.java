@@ -343,6 +343,80 @@ public class StorageService implements AutoCloseable {
         }
     }
 
+    // ==================== Inheritance Queries ====================
+
+    /**
+     * 查找接口的所有实现类
+     */
+    public List<Symbol> findImplementations(String interfaceName, int limit) throws SQLException {
+        String sql = """
+            SELECT SYMBOL_COLUMNS_PLACEHOLDER
+            FROM symbols
+            WHERE kind = 'CLASS'
+            AND (interfaces LIKE ? OR super_class LIKE ?)
+            ORDER BY qualified_name
+            LIMIT ?
+            """.replace("SYMBOL_COLUMNS_PLACEHOLDER", SYMBOL_COLUMNS);
+        String pattern = "%" + interfaceName + "%";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, pattern);
+            ps.setString(2, pattern);
+            ps.setInt(3, limit);
+            return mapSymbols(ps);
+        }
+    }
+
+    /**
+     * 查找方法的所有重写（子类重写）
+     */
+    public List<Symbol> findOverrides(String methodName, String superClassQualifiedName, int limit) throws SQLException {
+        String sql = """
+            SELECT SYMBOL_COLUMNS_PLACEHOLDER
+            FROM symbols
+            WHERE kind = 'METHOD'
+            AND name = ?
+            AND parent_class IN (
+                SELECT name FROM symbols
+                WHERE kind = 'CLASS'
+                AND (super_class = ? OR interfaces LIKE ?)
+            )
+            ORDER BY qualified_name
+            LIMIT ?
+            """.replace("SYMBOL_COLUMNS_PLACEHOLDER", SYMBOL_COLUMNS);
+        String interfacePattern = "%" + superClassQualifiedName + "%";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, methodName);
+            ps.setString(2, superClassQualifiedName);
+            ps.setString(3, interfacePattern);
+            ps.setInt(4, limit);
+            return mapSymbols(ps);
+        }
+    }
+
+    /**
+     * 查找字段/变量的所有使用位置
+     */
+    public List<Reference> findFieldUsages(String fieldQualifiedName, int limit) throws SQLException {
+        String sql = """
+            SELECT cr.id, cr.symbol_id, cr.from_file, cr.from_line, cr.context
+            FROM code_references cr
+            JOIN symbols s ON cr.symbol_id = s.id
+            WHERE s.qualified_name = ? OR s.name = ?
+            ORDER BY cr.from_file, cr.from_line
+            LIMIT ?
+            """;
+        // 提取字段名（最后一段）
+        String fieldName = fieldQualifiedName.contains(".")
+            ? fieldQualifiedName.substring(fieldQualifiedName.lastIndexOf('.') + 1)
+            : fieldQualifiedName;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, fieldQualifiedName);
+            ps.setString(2, fieldName);
+            ps.setInt(3, limit);
+            return mapReferences(ps);
+        }
+    }
+
     // ==================== References ====================
 
     public long insertReference(Reference ref) throws SQLException {
