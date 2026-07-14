@@ -893,8 +893,8 @@ public class StorageService implements AutoCloseable {
         if (symbols.isEmpty()) return;
         String sql = """
             INSERT INTO symbols (file_path, start_line, end_line, kind, name, qualified_name,
-                signature, return_type, parent_class, modifiers, javadoc)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                signature, return_type, parent_class, modifiers, javadoc, super_class, interfaces)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             for (Symbol s : symbols) {
@@ -909,6 +909,8 @@ public class StorageService implements AutoCloseable {
                 ps.setString(9, s.parentClass());
                 ps.setInt(10, s.modifiers());
                 ps.setString(11, s.javadoc());
+                ps.setString(12, s.superClass());
+                ps.setString(13, s.interfaces() != null ? s.interfaces().toString() : null);
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -918,7 +920,7 @@ public class StorageService implements AutoCloseable {
                     Symbol old = symbols.get(i);
                     symbols.set(i, new Symbol(rs.getLong(1), old.filePath(), old.startLine(), old.endLine(),
                         old.kind(), old.name(), old.qualifiedName(), old.signature(), old.returnType(),
-                        old.parentClass(), old.modifiers(), old.javadoc()));
+                        old.parentClass(), old.modifiers(), old.javadoc(), old.superClass(), old.interfaces()));
                     i++;
                 }
             }

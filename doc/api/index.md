@@ -14,6 +14,9 @@
 | `list_projects` | 列出所有已索引的项目（多项目模式） |
 | `search_all_projects` | 跨所有项目搜索（多项目模式） |
 | `health` | 健康检查，返回系统状态 |
+| `find_implementations` | 查找接口的所有实现类 |
+| `find_overrides` | 查找方法的所有重写 |
+| `find_usages` | 查找字段的所有使用位置 |
 
 ---
 
@@ -305,5 +308,97 @@
       "db_size_mb": 12.5
     }
   }
+}
+```
+
+---
+
+### find_implementations
+
+查找接口的所有实现类（支持直接和间接实现）。
+
+**参数：**
+- `interface_name` (string, 必填) — 接口名称或限定名
+- `limit` (integer, 可选) — 最大返回数，默认 20
+- `project` (string, 可选) — 目标项目名称
+
+**返回：**
+```json
+{
+  "project": "default",
+  "interface": "Serializable",
+  "implementations": [
+    {
+      "id": 1,
+      "name": "UserDto",
+      "qualified_name": "com.example.UserDto",
+      "file": "src/main/java/.../UserDto.java",
+      "line": 5,
+      "super_class": "",
+      "interfaces": ["java.io.Serializable"]
+    }
+  ],
+  "total": 1
+}
+```
+
+---
+
+### find_overrides
+
+查找方法的所有重写实现（包括子类重写）。
+
+**参数：**
+- `method_name` (string, 必填) — 方法名
+- `class_name` (string, 必填) — 父类限定名
+- `limit` (integer, 可选) — 最大返回数，默认 20
+- `project` (string, 可选) — 目标项目名称
+
+**返回：**
+```json
+{
+  "project": "default",
+  "method": "save",
+  "parent_class": "BaseService",
+  "overrides": [
+    {
+      "id": 1,
+      "name": "save",
+      "qualified_name": "com.example.UserService.save",
+      "file": "src/main/java/.../UserService.java",
+      "line": 10,
+      "signature": "void save()",
+      "return_type": "void"
+    }
+  ],
+  "total": 1
+}
+```
+
+---
+
+### find_usages
+
+查找字段/变量的所有使用位置。
+
+**参数：**
+- `field_name` (string, 必填) — 字段限定名
+- `limit` (integer, 可选) — 最大返回数，默认 50
+- `project` (string, 可选) — 目标项目名称
+
+**返回：**
+```json
+{
+  "project": "default",
+  "field": "com.example.UserService.name",
+  "usages": [
+    {
+      "id": 1,
+      "file": "src/main/java/.../Controller.java",
+      "line": 20,
+      "context": "userService.getName()"
+    }
+  ],
+  "total": 1
 }
 ```
