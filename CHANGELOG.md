@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.5] - 2026-07-13
+
+### Added
+- **Scala 集成测试**: 2 个端到端 Scala 项目测试
+  - 完整 Scala 项目索引
+  - Java/Kotlin/Scala 混合项目
+- **API 文档**: 新增 Scala 语言支持说明
+
+### Testing
+- 316 个测试全部通过
+
 ## [1.3.4] - 2026-07-13
 
 ### Added
