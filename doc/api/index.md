@@ -6,6 +6,7 @@
 |------|------|------|
 | Java | ✅ 完全支持 | 使用 JavaParser 解析 |
 | Kotlin | ✅ 完全支持 | 使用 KotlinParserAdapter 解析 |
+| Scala | ✅ 完全支持 | 使用 ScalaParserAdapter 解析 |
 
 ## MCP 工具列表
 
