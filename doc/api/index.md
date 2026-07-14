@@ -1,5 +1,12 @@
 # API 参考
 
+## 支持的语言
+
+| 语言 | 状态 | 说明 |
+|------|------|------|
+| Java | ✅ 完全支持 | 使用 JavaParser 解析 |
+| Kotlin | ✅ 完全支持 | 使用 KotlinParserAdapter 解析 |
+
 ## MCP 工具列表
 
 | 工具 | 说明 |
