@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-07-13
+
+### Added
+- **注解支持增强**: 完整的注解识别支持
+  - 支持 Spring Boot 注解 (@RestController, @Service, @Repository, @Component)
+  - 支持 Spring MVC 注解 (@RequestMapping, @GetMapping, @PostMapping, @DeleteMapping)
+  - 支持 JPA 注解 (@Entity, @Table, @Column, @Id)
+  - 支持 Lombok 注解 (@Data, @Builder, @Getter, @Setter)
+  - 支持 Validation 注解 (@NotNull, @Size, @Min, @Max, @Email)
+  - 支持 MyBatis 注解 (@Mapper, @Select, @Insert, @Update, @Delete)
+  - 支持 Swagger 注解 (@Api, @ApiOperation, @ApiParam)
+  - 支持 Security 注解 (@EnableWebSecurity, @PreAuthorize, @Secured)
+  - 支持 Cache 注解 (@EnableCaching, @Cacheable, @CacheEvict, @CachePut)
+  - 支持 Async 注解 (@EnableAsync, @Async)
+  - 支持 Scheduling 注解 (@EnableScheduling, @Scheduled)
+- **测试**: 330 个测试全部通过
+- **API 文档**: 完善注解支持文档
+
 ## [1.4.5] - 2026-07-13
 
 ### Added
