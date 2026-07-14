@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2026-07-13
+
+### Added
+- **MCP 工具**: 新增 2 个注解查询工具
+  - `find_annotations`: 查找符号的所有注解
+  - `find_by_annotation`: 查找带特定注解的符号
+- **工具总数**: 13 → 15 个 MCP 工具
+- **新增测试**: 4 个 MCP 注解工具测试
+
+### Testing
+- 290 个测试全部通过
+
 ## [1.2.3] - 2026-07-13
 
 ### Added

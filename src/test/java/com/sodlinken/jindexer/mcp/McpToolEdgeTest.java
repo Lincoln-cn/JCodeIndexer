@@ -429,4 +429,46 @@ class McpToolEdgeTest {
         var usages = storage.findFieldUsages("nonexistent.field", 10);
         assertTrue(usages.isEmpty());
     }
+
+    // ==================== find_annotations Tests ====================
+
+    @Test
+    void findAnnotationsBySymbol() throws Exception {
+        long symbolId = storage.insertSymbol(new Symbol(0, "Controller.java", 1, 10,
+            Symbol.SymbolKind.CLASS, "Controller", "com.app.Controller",
+            "class Controller", null, null, 1, null, null, null));
+
+        storage.insertAnnotation(new Annotation(0, symbolId, "RestController", java.util.Map.of()));
+        storage.insertAnnotation(new Annotation(0, symbolId, "RequestMapping", java.util.Map.of("path", "/api")));
+
+        var annotations = storage.findAnnotationsBySymbolName("Controller");
+        assertEquals(2, annotations.size());
+    }
+
+    @Test
+    void findAnnotationsNoMatch() throws Exception {
+        var annotations = storage.findAnnotationsBySymbolName("NonExistent");
+        assertTrue(annotations.isEmpty());
+    }
+
+    // ==================== find_by_annotation Tests ====================
+
+    @Test
+    void findByAnnotation() throws Exception {
+        long symbolId = storage.insertSymbol(new Symbol(0, "Controller.java", 1, 10,
+            Symbol.SymbolKind.CLASS, "Controller", "com.app.Controller",
+            "class Controller", null, null, 1, null, null, null));
+
+        storage.insertAnnotation(new Annotation(0, symbolId, "RestController", java.util.Map.of()));
+
+        var symbols = storage.findByAnnotation("RestController", 10);
+        assertEquals(1, symbols.size());
+        assertEquals("Controller", symbols.getFirst().name());
+    }
+
+    @Test
+    void findByAnnotationNoMatch() throws Exception {
+        var symbols = storage.findByAnnotation("NonExistent", 10);
+        assertTrue(symbols.isEmpty());
+    }
 }
