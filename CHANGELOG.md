@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-07-13
+
+### Added
+- **注解支持**: 完整的 Java/Kotlin 注解支持
+  - Annotation 数据模型
+  - JavaParserAdapter 提取类/方法注解
+  - KotlinParserAdapter 提取注解
+  - Indexer 自动索引注解
+  - MCP 工具支持注解查询
+- **MCP 工具**: 新增 2 个注解查询工具
+  - `find_annotations`: 查找符号的所有注解
+  - `find_by_annotation`: 查找带特定注解的符号
+- **工具总数**: 13 → 15 个 MCP 工具
+- **测试**: 22 个注解相关测试
+
+### Testing
+- 294 个测试全部通过
+
 ## [1.2.5] - 2026-07-13
 
 ### Added
