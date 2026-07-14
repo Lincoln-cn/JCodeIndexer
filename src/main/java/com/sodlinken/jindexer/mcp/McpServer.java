@@ -327,6 +327,19 @@ public class McpServer {
         if (multiProject) findUsagesParams.put("project", projectParam);
         toolsArray.add(createTool("find_usages", "查找字段/变量的所有使用位置", findUsagesParams));
 
+        // 15. find_annotations（查找符号的所有注解）
+        Map<String, Object> findAnnotationsParams = new LinkedHashMap<>();
+        findAnnotationsParams.put("symbol_name", Map.of("type", "string", "description", "符号名称或限定名"));
+        if (multiProject) findAnnotationsParams.put("project", projectParam);
+        toolsArray.add(createTool("find_annotations", "查找符号的所有注解", findAnnotationsParams));
+
+        // 16. find_by_annotation（查找带特定注解的符号）
+        Map<String, Object> findByAnnotationParams = new LinkedHashMap<>();
+        findByAnnotationParams.put("annotation_name", Map.of("type", "string", "description", "注解名"));
+        findByAnnotationParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) findByAnnotationParams.put("project", projectParam);
+        toolsArray.add(createTool("find_by_annotation", "查找带特定注解的所有符号", findByAnnotationParams));
+
         JsonObject result = new JsonObject();
         result.add("tools", toolsArray);
         sendResult(id, result);
@@ -351,6 +364,8 @@ public class McpServer {
                 case "find_implementations" -> callFindImplementations(arguments);
                 case "find_overrides" -> callFindOverrides(arguments);
                 case "find_usages" -> callFindUsages(arguments);
+                case "find_annotations" -> callFindAnnotations(arguments);
+                case "find_by_annotation" -> callFindByAnnotation(arguments);
                 default -> Map.of("error", "Unknown tool: " + toolName);
             };
             sendToolResult(id, result);
@@ -647,6 +662,46 @@ public class McpServer {
                 "context", r.context() != null ? r.context() : ""
             )).toList(),
             "total", usages.size()
+        );
+    }
+
+    private Map<String, Object> callFindAnnotations(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String symbolName = args.get("symbol_name").getAsString();
+
+        var annotations = storage.findAnnotationsBySymbolName(symbolName);
+        return Map.of(
+            "project", resolveProjectName(args),
+            "symbol", symbolName,
+            "annotations", annotations.stream().map(a -> Map.of(
+                "id", a.id(),
+                "name", a.name(),
+                "attributes", a.attributes() != null ? a.attributes() : Map.of()
+            )).toList(),
+            "total", annotations.size()
+        );
+    }
+
+    private Map<String, Object> callFindByAnnotation(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String annotationName = args.get("annotation_name").getAsString();
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 20;
+
+        var symbols = storage.findByAnnotation(annotationName, limit);
+        return Map.of(
+            "project", resolveProjectName(args),
+            "annotation", annotationName,
+            "symbols", symbols.stream().map(s -> Map.of(
+                "id", s.id(),
+                "name", s.name(),
+                "qualified_name", s.qualifiedName(),
+                "kind", s.kind().name(),
+                "file", s.filePath(),
+                "line", s.startLine()
+            )).toList(),
+            "total", symbols.size()
         );
     }
 
