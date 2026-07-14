@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-07-13
+
+### Added
+- **Kotlin 支持准备**: Symbol 新增 Kotlin 特有字段
+  - isDataClass: data class 标记
+  - isObject: object 单例标记
+  - isSealed: sealed class 标记
+  - isCompanion: companion object 标记
+- **数据库迁移**: 自动添加 Kotlin 字段，兼容旧数据库
+
+### Testing
+- 246 个测试全部通过
+
 ## [1.1.0] - 2026-07-13
 
 ### Added

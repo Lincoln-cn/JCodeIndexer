@@ -268,4 +268,16 @@ public final class Schema {
             "ALTER TABLE symbols ADD COLUMN interfaces TEXT"
         };
     }
+
+    /**
+     * 获取迁移语句（v1.1.1: 添加 Kotlin 特有字段）
+     */
+    public static String[] migrationV1_1_1() {
+        return new String[] {
+            "ALTER TABLE symbols ADD COLUMN is_data_class INTEGER DEFAULT 0",
+            "ALTER TABLE symbols ADD COLUMN is_object INTEGER DEFAULT 0",
+            "ALTER TABLE symbols ADD COLUMN is_sealed INTEGER DEFAULT 0",
+            "ALTER TABLE symbols ADD COLUMN is_companion INTEGER DEFAULT 0"
+        };
+    }
 }
