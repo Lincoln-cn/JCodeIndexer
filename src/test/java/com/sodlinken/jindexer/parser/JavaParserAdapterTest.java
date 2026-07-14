@@ -159,7 +159,7 @@ class JavaParserAdapterTest {
         Path file = tempDir.resolve("BadSyntax.java");
         Files.writeString(file, """
             package com.example;
-            
+
             public class BadSyntax {
                 this is not valid java
             }
@@ -168,5 +168,119 @@ class JavaParserAdapterTest {
         // 解析器应该能处理语法错误，不会抛出异常
         ParseResult result = adapter.parse("BadSyntax.java", file);
         assertNotNull(result);
+    }
+
+    @Test
+    void extendsExtraction() throws IOException {
+        Path file = tempDir.resolve("Child.java");
+        Files.writeString(file, """
+            package com.example;
+
+            public class Child extends Parent {
+                @Override
+                public void greet() {}
+            }
+            """);
+
+        ParseResult result = adapter.parse("Child.java", file);
+
+        Symbol classSymbol = result.symbols().stream()
+            .filter(s -> s.kind() == Symbol.SymbolKind.CLASS)
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(classSymbol);
+        assertEquals("Parent", classSymbol.superClass());
+    }
+
+    @Test
+    void implementsExtraction() throws IOException {
+        Path file = tempDir.resolve("ServiceImpl.java");
+        Files.writeString(file, """
+            package com.example;
+
+            public class ServiceImpl implements Serializable, Cloneable {
+            }
+            """);
+
+        ParseResult result = adapter.parse("ServiceImpl.java", file);
+
+        Symbol classSymbol = result.symbols().stream()
+            .filter(s -> s.kind() == Symbol.SymbolKind.CLASS)
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(classSymbol);
+        assertNotNull(classSymbol.interfaces());
+        assertEquals(2, classSymbol.interfaces().size());
+        assertTrue(classSymbol.interfaces().contains("Serializable"));
+        assertTrue(classSymbol.interfaces().contains("Cloneable"));
+    }
+
+    @Test
+    void extendsAndImplementsExtraction() throws IOException {
+        Path file = tempDir.resolve("FullChild.java");
+        Files.writeString(file, """
+            package com.example;
+
+            public class FullChild extends BaseService implements Serializable, AutoCloseable {
+            }
+            """);
+
+        ParseResult result = adapter.parse("FullChild.java", file);
+
+        Symbol classSymbol = result.symbols().stream()
+            .filter(s -> s.kind() == Symbol.SymbolKind.CLASS)
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(classSymbol);
+        assertEquals("BaseService", classSymbol.superClass());
+        assertEquals(2, classSymbol.interfaces().size());
+    }
+
+    @Test
+    void noExtendsNoImplements() throws IOException {
+        Path file = tempDir.resolve("Simple.java");
+        Files.writeString(file, """
+            package com.example;
+
+            public class Simple {
+            }
+            """);
+
+        ParseResult result = adapter.parse("Simple.java", file);
+
+        Symbol classSymbol = result.symbols().stream()
+            .filter(s -> s.kind() == Symbol.SymbolKind.CLASS)
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(classSymbol);
+        assertNull(classSymbol.superClass());
+        assertNull(classSymbol.interfaces());
+    }
+
+    @Test
+    void recordImplementsExtraction() throws IOException {
+        Path file = tempDir.resolve("MyRecord.java");
+        Files.writeString(file, """
+            package com.example;
+
+            public record MyRecord(int x, int y) implements Comparable<MyRecord> {
+            }
+            """);
+
+        ParseResult result = adapter.parse("MyRecord.java", file);
+
+        Symbol recordSymbol = result.symbols().stream()
+            .filter(s -> s.kind() == Symbol.SymbolKind.CLASS)
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(recordSymbol);
+        assertNotNull(recordSymbol.interfaces());
+        assertEquals(1, recordSymbol.interfaces().size());
+        assertEquals("Comparable", recordSymbol.interfaces().getFirst());
     }
 }

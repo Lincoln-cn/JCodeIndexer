@@ -68,6 +68,14 @@ public class JavaParserAdapter {
                 String className = clazz.getNameAsString();
                 String qualifiedName = packageName.isEmpty() ? className : packageName + "." + className;
 
+                // 提取继承信息
+                String superClass = clazz.getExtendedTypes().isEmpty()
+                    ? null
+                    : clazz.getExtendedTypes().get(0).getNameAsString();
+                List<String> interfaces = clazz.getImplementedTypes().stream()
+                    .map(ClassOrInterfaceType::getNameAsString)
+                    .toList();
+
                 // 类符号
                 symbols.add(new Symbol(
                     0, relativePath,
@@ -78,7 +86,9 @@ public class JavaParserAdapter {
                     buildClassSignature(clazz),
                     null, null,
                     extractModifiers(clazz.getModifiers()),
-                    config.isExtractJavadoc() ? extractJavadoc(clazz) : null
+                    config.isExtractJavadoc() ? extractJavadoc(clazz) : null,
+                    superClass,
+                    interfaces.isEmpty() ? null : interfaces
                 ));
 
                 // 方法符号
@@ -140,6 +150,11 @@ public class JavaParserAdapter {
                 String recordName = record.getNameAsString();
                 String qualifiedName = packageName.isEmpty() ? recordName : packageName + "." + recordName;
 
+                // 提取 Record 实现的接口
+                List<String> recordInterfaces = record.getImplementedTypes().stream()
+                    .map(ClassOrInterfaceType::getNameAsString)
+                    .toList();
+
                 // record 作为 CLASS 类型符号
                 symbols.add(new Symbol(
                     0, relativePath,
@@ -150,7 +165,9 @@ public class JavaParserAdapter {
                     buildRecordSignature(record),
                     null, null,
                     extractModifiers(record.getModifiers()),
-                    config.isExtractJavadoc() ? extractJavadoc(record) : null
+                    config.isExtractJavadoc() ? extractJavadoc(record) : null,
+                    null, // Record 没有父类
+                    recordInterfaces.isEmpty() ? null : recordInterfaces
                 ));
 
                 // record 组件作为 FIELD 符号
