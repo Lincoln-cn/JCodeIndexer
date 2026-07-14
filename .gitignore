@@ -1,7 +1,5 @@
-# innerdoc: 内部文档
+# innerdoc: 内部文档（不提交）
 innerdoc/
-!innerdoc/roadmap/
-!innerdoc/design/
 
 # Qwen Code 工具状态
 .qwen/

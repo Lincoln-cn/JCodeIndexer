@@ -1,6 +1,6 @@
 # Java Code Indexer
 
-> Java AST-level code indexer with SQLite storage, exposed as an [MCP](https://modelcontextprotocol.io/) server for AI coding assistants.
+> JVM AST-level code indexer (Java/Kotlin/Scala) with SQLite storage, exposed as an [MCP](https://modelcontextprotocol.io/) server for AI coding assistants.
 
 [中文](README.zh-CN.md) | English
 
@@ -8,7 +8,7 @@
 
 ## Why
 
-AI coding assistants exploring an unfamiliar Java project today:
+AI coding assistants exploring unfamiliar JVM projects today:
 
 | Task | Without Java Code Indexer | With Java Code Indexer |
 |------|--------------------------|----------------------|
@@ -16,6 +16,38 @@ AI coding assistants exploring an unfamiliar Java project today:
 | Understand all callers of `saveOrder()` | Read files one by one (~8k tokens) | `get_call_graph("saveOrder", "callers")` (~500 tokens) |
 | Find a config value in YAML/properties | `find` + `cat` multiple config files (~5k tokens) | `search_config("spring.datasource.url")` (~200 tokens) |
 | Locate all dependencies | Open pom.xml + transitive (~3k tokens) | `find_dependencies("spring-boot-starter")` (~300 tokens) |
+| Find all `@RestController` classes | Search through entire codebase (~8k tokens) | `find_by_annotation("RestController")` (~200 tokens) |
+| Understand interface implementations | Read multiple files (~5k tokens) | `find_implementations("UserService")` (~300 tokens) |
+
+---
+
+## Features
+
+### Multi-Language Support
+
+| Language | Status | Parser |
+|----------|--------|--------|
+| Java | ✅ Full support | JavaParser AST |
+| Kotlin | ✅ Full support | KotlinParserAdapter (regex) |
+| Scala | ✅ Full support | ScalaParserAdapter (regex) |
+
+### Annotation Recognition
+
+Supports 30+ annotations across major frameworks:
+
+| Framework | Annotations |
+|-----------|-------------|
+| Spring Boot | `@RestController`, `@Service`, `@Repository`, `@Component` |
+| Spring MVC | `@RequestMapping`, `@GetMapping`, `@PostMapping`, `@DeleteMapping` |
+| JPA | `@Entity`, `@Table`, `@Column`, `@Id`, `@GeneratedValue` |
+| Lombok | `@Data`, `@Builder`, `@Getter`, `@Setter`, `@NoArgsConstructor` |
+| Validation | `@NotNull`, `@Size`, `@Min`, `@Max`, `@Email` |
+| MyBatis | `@Mapper`, `@Select`, `@Insert`, `@Update`, `@Delete` |
+| Swagger | `@Api`, `@ApiOperation`, `@ApiParam` |
+| Security | `@EnableWebSecurity`, `@PreAuthorize`, `@Secured` |
+| Cache | `@EnableCaching`, `@Cacheable`, `@CacheEvict`, `@CachePut` |
+| Async | `@EnableAsync`, `@Async` |
+| Scheduling | `@EnableScheduling`, `@Scheduled` |
 
 ---
 
@@ -23,30 +55,32 @@ AI coding assistants exploring an unfamiliar Java project today:
 
 Requires **Java 21+** (JRE or JDK). Docker and Native Image options bundle the runtime.
 
-**Option 1: Download JAR (recommended)**
+**Option 1: Download from GitHub Releases (recommended)**
 
 ```bash
-# Download from GitHub Releases (replace VERSION with actual version, e.g. 1.0.0)
-curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION.jar
+# Fat JAR (all platforms)
+curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-1.5.1.jar
+
+# Native Image (Linux)
+curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-1.5.1-linux-amd64.tar.gz
+
+# Native Image (macOS)
+curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-1.5.1-darwin-arm64.tar.gz
+
+# Native Image (Windows)
+curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-1.5.1-windows-amd64.zip
 ```
 
 **Option 2: Build from source** (requires Java 21+ and Maven 3.8+)
 
 ```bash
-git clone https://github.com/sodlinken/java-code-indexer.git
-cd java-code-indexer
+git clone https://github.com/Lincoln-cn/JCodeIndexer.git
+cd JCodeIndexer
 mvn package -q -DskipTests
 # output: target/java-code-indexer-*-shaded.jar
 ```
 
-**Option 3: Native Image (GraalVM)**
-
-```bash
-native-image -jar target/java-code-indexer-*-shaded.jar \
-  -o jindexer --no-fallback
-```
-
-**Option 4: Docker**
+**Option 3: Docker**
 
 ```bash
 docker pull sodlinken/jcodeindexer:latest
@@ -57,11 +91,11 @@ docker pull sodlinken/jcodeindexer:latest
 ## Quickstart
 
 ```bash
-# 1. Index your Java project
-java -jar java-code-indexer-VERSION.jar --project-root /path/to/your/java-project --index
+# 1. Index your JVM project (Java/Kotlin/Scala)
+java -jar java-code-indexer-1.5.1.jar --project-root /path/to/your/project --index
 
 # 2. Start the MCP server (stdio, for Claude Code / Qwen Code / Cursor)
-java -jar java-code-indexer-VERSION.jar --project-root /path/to/your/java-project
+java -jar java-code-indexer-1.5.1.jar --project-root /path/to/your/project
 ```
 
 That's it. Your AI assistant can now query your codebase structure instead of reading files.
@@ -74,12 +108,13 @@ That's it. Your AI assistant can now query your codebase structure instead of re
 java -jar java-code-indexer-VERSION.jar [options]
 
 Options:
-  --project-root <path>   Java project root directory (default: current dir)
+  --project-root <path>   JVM project root directory (default: current dir)
   --data-dir <path>       Index data directory (default: .jindexer)
   --init                  Initialize database schema only
   --index                 Run indexer (extract symbols/references/calls)
   --status                Show index statistics
   --search <query>        Search directly (no MCP server needed)
+  --export <file>         Export index data to JSON file
   --version               Show version number
   --help, -h              Show help
 
@@ -88,7 +123,7 @@ No flags → start MCP server over stdio.
 
 ---
 
-## MCP Tools
+## MCP Tools (15 tools)
 
 When running as an MCP server, Java Code Indexer exposes these tools:
 
@@ -103,6 +138,12 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 | `find_dependencies` | Search project dependencies (Maven / Gradle) |
 | `health` | Server health check with status and statistics |
 | `list_projects` | List indexed projects (multi-project mode only) |
+| `search_all_projects` | Search across all projects (multi-project mode) |
+| `find_implementations` | Find all classes implementing an interface |
+| `find_overrides` | Find all method overrides in subclasses |
+| `find_usages` | Find all usages of a field/variable |
+| `find_annotations` | Find all annotations on a symbol |
+| `find_by_annotation` | Find symbols with a specific annotation |
 
 ---
 
@@ -111,9 +152,30 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 Create `.jindexer/config.yaml` in your project root (optional):
 
 ```yaml
+# Project root (CLI --project-root overrides this)
 project_root: /path/to/project
+
+# Data directory
 data_dir: .jindexer
-threads: 4
+
+# Indexing threads
+indexing_threads: 4
+
+# Max file size (KB)
+max_file_size_kb: 512
+
+# Exclude directories
+exclude_dirs:
+  - "**/target/**"
+  - "**/build/**"
+  - "**/node_modules/**"
+
+# Multi-project mode
+projects:
+  - name: backend
+    root: /path/to/backend
+  - name: frontend
+    root: /path/to/frontend
 ```
 
 ### Environment Variables
@@ -129,7 +191,7 @@ Priority: CLI flags → environment variables → config file → defaults.
 
 ## AI Assistant Integration
 
-### Qwen Code / Claude Desktop / Cursor
+### Claude Code / Cursor / Qwen Code
 
 Add to your MCP configuration:
 
@@ -137,14 +199,25 @@ Add to your MCP configuration:
 {
   "mcpServers": {
     "java-code-indexer": {
-      "command": "/path/to/jdk-21/bin/java",
-      "args": ["-jar", "/path/to/java-code-indexer-VERSION.jar", "--project-root", "/path/to/project"]
+      "command": "java",
+      "args": ["-jar", "/path/to/java-code-indexer-1.5.1.jar", "--project-root", "/path/to/project"]
     }
   }
 }
 ```
 
-> **Note:** `command` must point to a Java 21+ runtime. If `JAVA_HOME` is set to JDK 21, you can use `"${JAVA_HOME}/bin/java"` instead.
+### Docker Integration
+
+```json
+{
+  "mcpServers": {
+    "java-code-indexer": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "-v", "/path/to/project:/project", "sodlinken/jcodeindexer:latest", "--project-root", "/project"]
+    }
+  }
+}
+```
 
 ---
 
@@ -155,7 +228,10 @@ Add to your MCP configuration:
 │  AI Assistant │ ◄─────────────────► │  Java Code Indexer   │
 │  (Qwen/Claude)│    JSON-RPC         │                      │
 └──────────────┘                     │  ┌────────────────┐  │
-                                     │  │ JavaParser AST │  │
+                                     │  │ Parsers:       │  │
+                                     │  │  JavaParser    │  │
+                                     │  │  KotlinParser  │  │
+                                     │  │  ScalaParser   │  │
                                      │  └───────┬────────┘  │
                                      │          ▼            │
                                      │  ┌────────────────┐  │
@@ -163,6 +239,7 @@ Add to your MCP configuration:
                                      │  │  symbols       │  │
                                      │  │  references    │  │
                                      │  │  call_graphs   │  │
+                                     │  │  annotations   │  │
                                      │  │  configs       │  │
                                      │  │  dependencies  │  │
                                      │  └────────────────┘  │
@@ -171,9 +248,9 @@ Add to your MCP configuration:
 
 ### Indexing Strategy
 
-1. Walk Java source files via filesystem traversal
+1. Walk JVM source files (Java/Kotlin/Scala) via filesystem traversal
 2. SHA-1 content hash skips unchanged files (incremental)
-3. JavaParser AST extracts symbols, references, and call relationships
+3. Parsers extract symbols, references, call relationships, and annotations
 4. POM/Gradle parsers extract dependency information
 5. Config parsers extract YAML/Properties/.env entries
 6. All data upserted into embedded SQLite (WAL mode)
@@ -181,11 +258,12 @@ Add to your MCP configuration:
 
 ### Database Schema
 
-Seven core tables:
+Eight core tables:
 
 - **`symbols`** — classes, methods, fields with location and signatures
 - **`references`** — symbol usage locations across the codebase
 - **`calls`** — method call relationships (caller → callee)
+- **`annotations`** — symbol annotations with attributes
 - **`chunks`** — code slices at class/method granularity
 - **`file_meta`** — SHA-1 hashes for incremental indexing
 - **`config_entries`** — YAML/Properties/.env key-value pairs
@@ -204,10 +282,10 @@ src/main/java/com/sodlinken/jindexer/
 ├── config/       # YAML config loader
 ├── storage/      # SQLite schema & StorageService (including FTS5)
 ├── indexer/      # Incremental indexing engine
-├── parser/       # Java, POM, Gradle, Config parsers
+├── parser/       # Java, Kotlin, Scala, POM, Gradle, Config parsers
 ├── chunker/      # Code chunking (class/method slices)
 ├── search/       # Structured search (FTS5 full-text)
-├── model/        # Data models (Symbol, Call, Chunk, etc.)
+├── model/        # Data models (Symbol, Call, Chunk, Annotation, etc.)
 └── util/         # SHA-1 hashing utility
 ```
 
@@ -224,48 +302,9 @@ Release workflow is automated via GitHub Actions:
 | `java-code-indexer-VERSION.jar` | Fat JAR, requires Java 21+ |
 | `java-code-indexer-VERSION-linux-amd64.tar.gz` | Linux amd64 Native Image |
 | `java-code-indexer-VERSION-darwin-arm64.tar.gz` | macOS arm64 Native Image |
+| `java-code-indexer-VERSION-windows-amd64.zip` | Windows amd64 Native Image |
 | `docker-image-VERSION.tar.gz` | Docker offline image |
 | `checksums-VERSION.sha256` | SHA-256 checksums |
-
-### Local Build
-
-```bash
-# Build Fat JAR + Native Image
-./script/release.sh
-
-# Specify version
-./script/release.sh -v 1.0.0
-
-# Skip Native Image
-./script/release.sh -v 1.0.0 --skip-native
-```
-
-### Fat JAR
-
-Output at `release/<version>/java-code-indexer-<version>.jar`, requires Java 21+.
-
-```bash
-java -jar release/1.0.0/java-code-indexer-1.0.0.jar --project-root /path/to/project
-```
-
-### Native Image (GraalVM)
-
-Output at `release/<version>/jindexer`, no JVM required, instant startup.
-
-```bash
-./release/1.0.0/jindexer --project-root /path/to/project --index
-```
-
-### Docker
-
-```bash
-# Build and run locally
-docker build -t java-code-indexer .
-docker run --rm -v /path/to/project:/project java-code-indexer --project-root /project --index
-
-# Push to private registry
-DOCKER_REGISTRY=your-registry.com ./script/release.sh --push-docker
-```
 
 ---
 
@@ -273,13 +312,15 @@ DOCKER_REGISTRY=your-registry.com ./script/release.sh --push-docker
 
 ```bash
 # Clone and build
-git clone https://github.com/sodlinken/java-code-indexer.git
-cd java-code-indexer
+git clone https://github.com/Lincoln-cn/JCodeIndexer.git
+cd JCodeIndexer
 mvn package -q -DskipTests
 
+# Run tests
+mvn test
+
 # Index this project itself
-java -jar target/java-code-indexer-*-shaded.jar \
-  --project-root . --index
+java -jar target/java-code-indexer-*-shaded.jar --project-root . --index
 
 # Start MCP server
 java -jar target/java-code-indexer-*-shaded.jar --project-root .
@@ -291,19 +332,30 @@ GitHub Actions automated release process:
 
 1. Push `v*` tag or manual trigger
 2. Build Fat JAR
-3. Build Native Image (Linux amd64, macOS arm64)
+3. Build Native Image (Linux amd64, macOS arm64, Windows amd64)
 4. Build Docker image
 5. Create GitHub Release and upload artifacts
 
 ```bash
 # Create release tag
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.5.1
+git push origin v1.5.1
 ```
 
-## Contributing
+---
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+## Testing
+
+```bash
+# Run all tests (246+ tests)
+mvn test
+
+# Run specific test class
+mvn test -Dtest=JavaParserAdapterTest
+
+# Run performance benchmarks
+mvn test -Dtest=PerformanceBenchmarkTest
+```
 
 ---
 
