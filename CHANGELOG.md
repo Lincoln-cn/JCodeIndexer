@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.5] - 2026-07-13
+
+### Added
+- **注解集成测试**: 4 个端到端注解测试
+  - Java 注解索引
+  - 注解查询
+  - 按注解查找符号
+  - 混合注解项目
+- **API 文档**: 新增 find_annotations, find_by_annotation 文档
+
+### Testing
+- 294 个测试全部通过
+
 ## [1.2.4] - 2026-07-13
 
 ### Added
