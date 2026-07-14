@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.4] - 2026-07-13
+
+### Added
+- **MCP 工具 Scala 支持**: 验证所有 MCP 工具对 Scala 代码的支持
+  - find_symbol 支持 Scala class/trait/object
+  - find_references 支持 Scala 引用
+  - 增量索引支持 Scala 文件
+- **新增测试**: 5 个 Scala MCP 集成测试
+
+### Testing
+- 314 个测试全部通过
+
 ## [1.3.3] - 2026-07-13
 
 ### Added
