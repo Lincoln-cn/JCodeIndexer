@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * - 文件级增量：SHA-1 比对
  * - 事务保护：单文件内原子提交
  * - Virtual Threads 并行解析
- * - 支持 Java / YAML / Properties / .env / POM / Gradle 文件
+ * - 支持 Java / Kotlin / YAML / Properties / .env / POM / Gradle 文件
  */
 public class Indexer {
 
@@ -33,6 +33,7 @@ public class Indexer {
     private final StorageService storage;
     private final DatabaseManager dbManager;
     private final JavaParserAdapter javaParser;
+    private final KotlinParserAdapter kotlinParser;
     private final ConfigFileParser configFileParser;
     private final PomParser pomParser;
     private final GradleParser gradleParser;
@@ -46,6 +47,7 @@ public class Indexer {
         this.storage = storage;
         this.dbManager = dbManager;
         this.javaParser = new JavaParserAdapter(config);
+        this.kotlinParser = new KotlinParserAdapter(config);
         this.configFileParser = new ConfigFileParser();
         this.pomParser = new PomParser();
         this.gradleParser = new GradleParser();
@@ -80,16 +82,17 @@ public class Indexer {
             progress.onPhaseStart("扫描文件", 0);
 
             List<Path> javaFiles = new ArrayList<>();
+            List<Path> kotlinFiles = new ArrayList<>();
             List<Path> configFileFiles = new ArrayList<>();
             List<Path> pomFiles = new ArrayList<>();
             List<Path> gradleFiles = new ArrayList<>();
 
-            scanFiles(projectRoot, javaFiles, configFileFiles, pomFiles, gradleFiles);
+            scanFiles(projectRoot, javaFiles, kotlinFiles, configFileFiles, pomFiles, gradleFiles);
 
-            int totalFiles = javaFiles.size() + configFileFiles.size() + pomFiles.size() + gradleFiles.size();
+            int totalFiles = javaFiles.size() + kotlinFiles.size() + configFileFiles.size() + pomFiles.size() + gradleFiles.size();
             progress.onPhaseEnd("扫描文件");
-            log.info("扫描到 {} 个文件 (Java={}, Config={}, POM={}, Gradle={})",
-                totalFiles, javaFiles.size(), configFileFiles.size(), pomFiles.size(), gradleFiles.size());
+            log.info("扫描到 {} 个文件 (Java={}, Kotlin={}, Config={}, POM={}, Gradle={})",
+                totalFiles, javaFiles.size(), kotlinFiles.size(), configFileFiles.size(), pomFiles.size(), gradleFiles.size());
 
             // 2. 对比 SHA-1，找出需要更新的文件
             progress.onPhaseStart("比对哈希", totalFiles);
@@ -101,6 +104,7 @@ public class Indexer {
             Set<String> currentFiles = new HashSet<>();
             List<Path> allFiles = new ArrayList<>();
             allFiles.addAll(javaFiles);
+            allFiles.addAll(kotlinFiles);
             allFiles.addAll(configFileFiles);
             allFiles.addAll(pomFiles);
             allFiles.addAll(gradleFiles);
@@ -213,6 +217,8 @@ public class Indexer {
         dbManager.executeInTransactionVoid(conn -> {
             if (fileName.endsWith(".java")) {
                 indexJavaFile(relativePath, filePath);
+            } else if (KotlinParserAdapter.isKotlinFile(fileName)) {
+                indexKotlinFile(relativePath, filePath);
             } else if (PomParser.isPomFile(fileName)) {
                 indexPomFile(relativePath, filePath);
             } else if (GradleParser.isGradleFile(fileName)) {
@@ -356,6 +362,112 @@ public class Indexer {
     }
 
     /**
+     * Kotlin 文件 diff 索引：类似 Java，但使用 KotlinParserAdapter
+     */
+    private void indexKotlinFile(String relativePath, Path filePath) throws Exception {
+        ParseResult parsed = kotlinParser.parse(relativePath, filePath);
+
+        // --- 符号 diff ---
+        List<Symbol> oldSymbols = storage.findSymbolsByFile(relativePath);
+        List<Symbol> newSymbols = parsed.symbols();
+
+        Map<String, Symbol> oldSymbolMap = new LinkedHashMap<>();
+        for (Symbol s : oldSymbols) {
+            oldSymbolMap.put(s.qualifiedName() + "|" + s.kind(), s);
+        }
+
+        Map<String, Symbol> newSymbolMap = new LinkedHashMap<>();
+        for (Symbol s : newSymbols) {
+            newSymbolMap.put(s.qualifiedName() + "|" + s.kind(), s);
+        }
+
+        List<Long> symbolIdsToDelete = new ArrayList<>();
+        for (Map.Entry<String, Symbol> entry : oldSymbolMap.entrySet()) {
+            if (!newSymbolMap.containsKey(entry.getKey())) {
+                symbolIdsToDelete.add(entry.getValue().id());
+            }
+        }
+        if (!symbolIdsToDelete.isEmpty()) {
+            storage.deleteSymbolsByIds(symbolIdsToDelete);
+        }
+
+        List<Symbol> symbolsToInsert = new ArrayList<>();
+        for (Map.Entry<String, Symbol> entry : newSymbolMap.entrySet()) {
+            if (!oldSymbolMap.containsKey(entry.getKey())) {
+                symbolsToInsert.add(entry.getValue());
+            }
+        }
+        if (!symbolsToInsert.isEmpty()) {
+            storage.insertSymbols(symbolsToInsert);
+        }
+
+        // --- 引用和调用 ---
+        storage.deleteReferencesByFile(relativePath);
+        storage.deleteCallsByFile(relativePath);
+
+        for (Reference ref : parsed.references()) {
+            String refName = extractReferenceName(ref.context());
+            if (refName != null) {
+                long symbolId = storage.findSymbolIdByQualifiedName(refName);
+                if (symbolId > 0) {
+                    Reference resolvedRef = new Reference(0, symbolId, ref.fromFile(), ref.fromLine(), ref.context());
+                    storage.insertReference(resolvedRef);
+                }
+            }
+        }
+
+        for (Call call : parsed.calls()) {
+            storage.insertCall(call);
+        }
+
+        // --- 代码块 diff ---
+        String packageName = "";
+        for (Symbol s : newSymbols) {
+            if (s.kind() == Symbol.SymbolKind.CLASS) {
+                int lastDot = s.qualifiedName().lastIndexOf('.');
+                packageName = lastDot > 0 ? s.qualifiedName().substring(0, lastDot) : "";
+                break;
+            }
+        }
+        List<Chunk> newChunks = chunker.chunkFile(relativePath, filePath, packageName);
+        List<Chunk> oldChunks = storage.findChunksByFile(relativePath);
+
+        Map<String, Chunk> oldChunkMap = new LinkedHashMap<>();
+        for (Chunk c : oldChunks) {
+            oldChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
+        }
+
+        Map<String, Chunk> newChunkMap = new LinkedHashMap<>();
+        for (Chunk c : newChunks) {
+            newChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
+        }
+
+        List<Long> chunkIdsToDelete = new ArrayList<>();
+        for (Map.Entry<String, Chunk> entry : oldChunkMap.entrySet()) {
+            if (!newChunkMap.containsKey(entry.getKey())) {
+                chunkIdsToDelete.add(entry.getValue().id());
+            }
+        }
+        if (!chunkIdsToDelete.isEmpty()) {
+            storage.deleteChunksByIds(chunkIdsToDelete);
+        }
+
+        List<Chunk> chunksToInsert = new ArrayList<>();
+        for (Map.Entry<String, Chunk> entry : newChunkMap.entrySet()) {
+            if (!oldChunkMap.containsKey(entry.getKey())) {
+                chunksToInsert.add(entry.getValue());
+            }
+        }
+        if (!chunksToInsert.isEmpty()) {
+            storage.insertChunks(chunksToInsert);
+        }
+
+        log.debug("Kotlin diff 完成: {} (符号: {}增{}删, 块: {}增{}删)",
+            relativePath, symbolsToInsert.size(), symbolIdsToDelete.size(),
+            chunksToInsert.size(), chunkIdsToDelete.size());
+    }
+
+    /**
      * 配置文件 diff 索引：按 filePath+key 做 diff
      */
     private void indexConfigFile(String relativePath, Path filePath) throws Exception {
@@ -459,6 +571,7 @@ public class Indexer {
      */
     private void scanFiles(Path root,
                            List<Path> javaFiles,
+                           List<Path> kotlinFiles,
                            List<Path> configFileFiles,
                            List<Path> pomFiles,
                            List<Path> gradleFiles) throws IOException {
@@ -485,6 +598,8 @@ public class Indexer {
 
                 if (fileName.endsWith(".java")) {
                     javaFiles.add(file);
+                } else if (KotlinParserAdapter.isKotlinFile(fileName)) {
+                    kotlinFiles.add(file);
                 } else if (ConfigFileParser.isConfigFile(fileName)) {
                     configFileFiles.add(file);
                 } else if (PomParser.isPomFile(fileName)) {
