@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-13
+
+### Added
+- **继承关系支持**: 完整的 Java 类继承和接口实现支持
+  - Symbol 新增 superClass, interfaces 字段
+  - JavaParserAdapter 自动提取 extends/implements
+  - StorageService 提供继承关系查询
+- **MCP 工具扩展**: 新增 3 个 Java 特有工具
+  - `find_implementations`: 查找接口的所有实现类
+  - `find_overrides`: 查找方法的所有重写
+  - `find_usages`: 查找字段的所有使用位置
+- **工具总数**: 10 → 13 个 MCP 工具
+- **数据库迁移**: 自动添加新字段，兼容旧数据库
+- **集成测试**: 4 个端到端继承关系测试
+- **API 文档**: 新增工具文档
+
+### Testing
+- 246 个测试全部通过
+
 ## [1.0.5] - 2026-07-13
 
 ### Added
