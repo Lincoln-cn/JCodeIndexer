@@ -105,7 +105,33 @@ public class DatabaseManager implements AutoCloseable {
         } finally {
             connection.setAutoCommit(true);
         }
+
+        // 执行数据库迁移（v1.0.1: 添加继承关系字段）
+        runMigrations();
+
         log.info("数据库初始化完成");
+    }
+
+    /**
+     * 执行数据库迁移
+     * ALTER TABLE 语句会自动忽略已存在的字段
+     */
+    private void runMigrations() {
+        try (Statement stmt = connection.createStatement()) {
+            for (String sql : Schema.migrationV1_0_1()) {
+                try {
+                    stmt.execute(sql);
+                    log.debug("迁移执行成功: {}", sql);
+                } catch (SQLException e) {
+                    // 字段已存在，忽略
+                    if (!e.getMessage().contains("already exists")) {
+                        log.warn("迁移执行失败: {}", sql, e);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            log.warn("迁移过程出错", e);
+        }
     }
 
     /**

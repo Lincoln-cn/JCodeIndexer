@@ -257,4 +257,15 @@ public final class Schema {
             CREATE_INDEX_DEPENDENCIES_TYPE
         };
     }
+
+    /**
+     * 获取迁移语句（v1.0.1: 添加继承关系字段）
+     * 这些语句在初始化时执行，会自动跳过已存在的字段
+     */
+    public static String[] migrationV1_0_1() {
+        return new String[] {
+            "ALTER TABLE symbols ADD COLUMN super_class TEXT",
+            "ALTER TABLE symbols ADD COLUMN interfaces TEXT"
+        };
+    }
 }

@@ -19,6 +19,11 @@ public class StorageService implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(StorageService.class);
     private final DatabaseManager db;
 
+    // 符号查询的公共列（包含继承信息）
+    private static final String SYMBOL_COLUMNS =
+        "id, file_path, start_line, end_line, kind, name, qualified_name, " +
+        "signature, return_type, parent_class, modifiers, javadoc, super_class, interfaces";
+
     public StorageService(DatabaseManager db) {
         this.db = db;
     }
@@ -28,8 +33,8 @@ public class StorageService implements AutoCloseable {
     public long insertSymbol(Symbol s) throws SQLException {
         String sql = """
             INSERT INTO symbols (file_path, start_line, end_line, kind, name, qualified_name,
-                signature, return_type, parent_class, modifiers, javadoc)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                signature, return_type, parent_class, modifiers, javadoc, super_class, interfaces)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, s.filePath());
@@ -43,6 +48,8 @@ public class StorageService implements AutoCloseable {
             ps.setString(9, s.parentClass());
             ps.setInt(10, s.modifiers());
             ps.setString(11, s.javadoc());
+            ps.setString(12, s.superClass());
+            ps.setString(13, s.interfaces() != null ? s.interfaces().toString() : null);
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 return rs.next() ? rs.getLong(1) : -1;
@@ -52,8 +59,7 @@ public class StorageService implements AutoCloseable {
 
     public List<Symbol> searchSymbolsByName(String query, int limit) throws SQLException {
         String sql = """
-            SELECT id, file_path, start_line, end_line, kind, name, qualified_name,
-                   signature, return_type, parent_class, modifiers, javadoc
+            SELECT SYMBOL_COLUMNS_PLACEHOLDER
             FROM symbols
             WHERE qualified_name LIKE ? OR name LIKE ?
             ORDER BY
@@ -67,7 +73,7 @@ public class StorageService implements AutoCloseable {
                           WHEN 'FIELD' THEN 2 END,
                 qualified_name
             LIMIT ?
-            """;
+            """.replace("SYMBOL_COLUMNS_PLACEHOLDER", SYMBOL_COLUMNS);
         String contains = "%" + query + "%";
         String prefix = query + "%";
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
@@ -94,6 +100,7 @@ public class StorageService implements AutoCloseable {
         String sql = """
             SELECT s.id, s.file_path, s.start_line, s.end_line, s.kind, s.name, s.qualified_name,
                    s.signature, s.return_type, s.parent_class, s.modifiers, s.javadoc,
+                   s.super_class, s.interfaces,
                    rank AS fts_rank
             FROM symbols s
             JOIN symbols_fts fts ON s.id = fts.rowid
@@ -213,12 +220,11 @@ public class StorageService implements AutoCloseable {
      */
     public List<Symbol> listAllSymbols(int limit) throws SQLException {
         String sql = """
-            SELECT id, file_path, start_line, end_line, kind, name, qualified_name,
-                   signature, return_type, parent_class, modifiers, javadoc
+            SELECT SYMBOL_COLUMNS_PLACEHOLDER
             FROM symbols
             ORDER BY qualified_name
             LIMIT ?
-            """;
+            """.replace("SYMBOL_COLUMNS_PLACEHOLDER", SYMBOL_COLUMNS);
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
             ps.setInt(1, limit);
             return mapSymbols(ps);
@@ -248,10 +254,9 @@ public class StorageService implements AutoCloseable {
 
     public Optional<Symbol> findSymbolByQualifiedName(String qualifiedName) throws SQLException {
         String sql = """
-            SELECT id, file_path, start_line, end_line, kind, name, qualified_name,
-                   signature, return_type, parent_class, modifiers, javadoc
+            SELECT SYMBOL_COLUMNS_PLACEHOLDER
             FROM symbols WHERE qualified_name = ?
-            """;
+            """.replace("SYMBOL_COLUMNS_PLACEHOLDER", SYMBOL_COLUMNS);
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
             ps.setString(1, qualifiedName);
             List<Symbol> results = mapSymbols(ps);
@@ -261,10 +266,9 @@ public class StorageService implements AutoCloseable {
 
     public Optional<Symbol> findSymbolById(long id) throws SQLException {
         String sql = """
-            SELECT id, file_path, start_line, end_line, kind, name, qualified_name,
-                   signature, return_type, parent_class, modifiers, javadoc
+            SELECT SYMBOL_COLUMNS_PLACEHOLDER
             FROM symbols WHERE id = ?
-            """;
+            """.replace("SYMBOL_COLUMNS_PLACEHOLDER", SYMBOL_COLUMNS);
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
             ps.setLong(1, id);
             List<Symbol> results = mapSymbols(ps);
@@ -311,10 +315,9 @@ public class StorageService implements AutoCloseable {
         // 统一路径分隔符为正斜杠
         filePath = filePath.replace("\\", "/");
         String sql = """
-            SELECT id, file_path, start_line, end_line, kind, name, qualified_name,
-                   signature, return_type, parent_class, modifiers, javadoc
+            SELECT SYMBOL_COLUMNS_PLACEHOLDER
             FROM symbols WHERE file_path = ? ORDER BY start_line
-            """;
+            """.replace("SYMBOL_COLUMNS_PLACEHOLDER", SYMBOL_COLUMNS);
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
             ps.setString(1, filePath);
             return mapSymbols(ps);
@@ -323,10 +326,9 @@ public class StorageService implements AutoCloseable {
 
     public List<Symbol> findSymbolsByKind(Symbol.SymbolKind kind) throws SQLException {
         String sql = """
-            SELECT id, file_path, start_line, end_line, kind, name, qualified_name,
-                   signature, return_type, parent_class, modifiers, javadoc
+            SELECT SYMBOL_COLUMNS_PLACEHOLDER
             FROM symbols WHERE kind = ? ORDER BY qualified_name
-            """;
+            """.replace("SYMBOL_COLUMNS_PLACEHOLDER", SYMBOL_COLUMNS);
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
             ps.setString(1, kind.name());
             return mapSymbols(ps);
@@ -1177,6 +1179,20 @@ public class StorageService implements AutoCloseable {
         List<Symbol> list = new ArrayList<>();
         try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
+                // 解析 interfaces JSON 数组
+                String interfacesStr = rs.getString("interfaces");
+                List<String> interfaces = null;
+                if (interfacesStr != null && !interfacesStr.isEmpty()) {
+                    interfaces = new ArrayList<>();
+                    // 移除方括号并分割
+                    String cleaned = interfacesStr.replaceAll("[\\[\\]\\s]", "");
+                    if (!cleaned.isEmpty()) {
+                        for (String s : cleaned.split(",")) {
+                            interfaces.add(s.trim());
+                        }
+                    }
+                }
+
                 list.add(new Symbol(
                     rs.getLong("id"),
                     rs.getString("file_path"),
@@ -1189,7 +1205,9 @@ public class StorageService implements AutoCloseable {
                     rs.getString("return_type"),
                     rs.getString("parent_class"),
                     rs.getInt("modifiers"),
-                    rs.getString("javadoc")
+                    rs.getString("javadoc"),
+                    rs.getString("super_class"),
+                    interfaces
                 ));
             }
         }

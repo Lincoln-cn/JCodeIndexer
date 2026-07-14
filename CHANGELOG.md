@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-07-13
+
+### Added
+- **继承关系支持**: Symbol 新增 superClass 和 interfaces 字段
+  - superClass: 父类限定名
+  - interfaces: 实现的接口列表 (JSON 数组)
+- **数据库迁移**: 自动添加新字段，兼容旧数据库
+
+### Changed
+- StorageService 优化 SQL 查询，使用公共列常量
+
 ## [1.0.0] - 2026-07-13
 
 ### Added
