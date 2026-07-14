@@ -19,11 +19,11 @@ public class StorageService implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(StorageService.class);
     private final DatabaseManager db;
 
-    // 符号查询的公共列（包含继承信息和 Kotlin 字段）
+    // 符号查询的公共列（包含继承信息、Kotlin 和 Scala 字段）
     private static final String SYMBOL_COLUMNS =
         "id, file_path, start_line, end_line, kind, name, qualified_name, " +
         "signature, return_type, parent_class, modifiers, javadoc, super_class, interfaces, " +
-        "is_data_class, is_object, is_sealed, is_companion";
+        "is_data_class, is_object, is_sealed, is_companion, is_trait, is_case_class";
 
     public StorageService(DatabaseManager db) {
         this.db = db;
@@ -35,8 +35,8 @@ public class StorageService implements AutoCloseable {
         String sql = """
             INSERT INTO symbols (file_path, start_line, end_line, kind, name, qualified_name,
                 signature, return_type, parent_class, modifiers, javadoc, super_class, interfaces,
-                is_data_class, is_object, is_sealed, is_companion)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                is_data_class, is_object, is_sealed, is_companion, is_trait, is_case_class)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, s.filePath());
@@ -56,6 +56,8 @@ public class StorageService implements AutoCloseable {
             ps.setInt(15, s.isObject() ? 1 : 0);
             ps.setInt(16, s.isSealed() ? 1 : 0);
             ps.setInt(17, s.isCompanion() ? 1 : 0);
+            ps.setInt(18, s.isTrait() ? 1 : 0);
+            ps.setInt(19, s.isCaseClass() ? 1 : 0);
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 return rs.next() ? rs.getLong(1) : -1;
@@ -107,6 +109,7 @@ public class StorageService implements AutoCloseable {
             SELECT s.id, s.file_path, s.start_line, s.end_line, s.kind, s.name, s.qualified_name,
                    s.signature, s.return_type, s.parent_class, s.modifiers, s.javadoc,
                    s.super_class, s.interfaces, s.is_data_class, s.is_object, s.is_sealed, s.is_companion,
+                   s.is_trait, s.is_case_class,
                    rank AS fts_rank
             FROM symbols s
             JOIN symbols_fts fts ON s.id = fts.rowid
@@ -949,7 +952,7 @@ public class StorageService implements AutoCloseable {
         String sql = """
             SELECT s.id, s.file_path, s.start_line, s.end_line, s.kind, s.name, s.qualified_name,
                    s.signature, s.return_type, s.parent_class, s.modifiers, s.javadoc, s.super_class, s.interfaces,
-                   s.is_data_class, s.is_object, s.is_sealed, s.is_companion
+                   s.is_data_class, s.is_object, s.is_sealed, s.is_companion, s.is_trait, s.is_case_class
             FROM symbols s
             JOIN annotations a ON s.id = a.symbol_id
             WHERE a.name = ?
@@ -1450,7 +1453,9 @@ public class StorageService implements AutoCloseable {
                     rs.getInt("is_data_class") == 1,
                     rs.getInt("is_object") == 1,
                     rs.getInt("is_sealed") == 1,
-                    rs.getInt("is_companion") == 1
+                    rs.getInt("is_companion") == 1,
+                    rs.getInt("is_trait") == 1,
+                    rs.getInt("is_case_class") == 1
                 ));
             }
         }

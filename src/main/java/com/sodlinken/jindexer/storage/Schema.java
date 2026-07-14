@@ -308,4 +308,14 @@ public final class Schema {
             "CREATE INDEX IF NOT EXISTS idx_annotations_name ON annotations(name)"
         };
     }
+
+    /**
+     * 获取迁移语句（v1.3.1: 添加 Scala 特有字段）
+     */
+    public static String[] migrationV1_3_1() {
+        return new String[] {
+            "ALTER TABLE symbols ADD COLUMN is_trait INTEGER DEFAULT 0",
+            "ALTER TABLE symbols ADD COLUMN is_case_class INTEGER DEFAULT 0"
+        };
+    }
 }

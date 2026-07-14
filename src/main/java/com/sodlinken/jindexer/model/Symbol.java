@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * 代码符号实体，覆盖 class / method / field
- * 支持 Java 和 Kotlin 语言
+ * 支持 Java / Kotlin / Scala 语言
  */
 public record Symbol(
     long id,
@@ -25,14 +25,17 @@ public record Symbol(
     boolean isDataClass,    // data class 标记
     boolean isObject,       // object 单例标记
     boolean isSealed,       // sealed class 标记
-    boolean isCompanion     // companion object 标记
+    boolean isCompanion,    // companion object 标记
+    // Scala 特有字段
+    boolean isTrait,        // trait 标记
+    boolean isCaseClass     // case class 标记
 ) {
     public enum SymbolKind {
         CLASS, METHOD, FIELD
     }
 
     /**
-     * 兼容旧构造函数（不含继承信息和 Kotlin 字段）
+     * 兼容旧构造函数（不含继承信息和语言字段）
      */
     public Symbol(long id, String filePath, int startLine, int endLine,
                   SymbolKind kind, String name, String qualifiedName,
@@ -40,11 +43,11 @@ public record Symbol(
                   int modifiers, String javadoc) {
         this(id, filePath, startLine, endLine, kind, name, qualifiedName,
              signature, returnType, parentClass, modifiers, javadoc, null, null,
-             false, false, false, false);
+             false, false, false, false, false, false);
     }
 
     /**
-     * 兼容旧构造函数（含继承信息，不含 Kotlin 字段）
+     * 兼容旧构造函数（含继承信息，不含语言字段）
      */
     public Symbol(long id, String filePath, int startLine, int endLine,
                   SymbolKind kind, String name, String qualifiedName,
@@ -52,6 +55,19 @@ public record Symbol(
                   int modifiers, String javadoc, String superClass, List<String> interfaces) {
         this(id, filePath, startLine, endLine, kind, name, qualifiedName,
              signature, returnType, parentClass, modifiers, javadoc, superClass, interfaces,
-             false, false, false, false);
+             false, false, false, false, false, false);
+    }
+
+    /**
+     * 兼容旧构造函数（含 Kotlin 字段，不含 Scala 字段）
+     */
+    public Symbol(long id, String filePath, int startLine, int endLine,
+                  SymbolKind kind, String name, String qualifiedName,
+                  String signature, String returnType, String parentClass,
+                  int modifiers, String javadoc, String superClass, List<String> interfaces,
+                  boolean isDataClass, boolean isObject, boolean isSealed, boolean isCompanion) {
+        this(id, filePath, startLine, endLine, kind, name, qualifiedName,
+             signature, returnType, parentClass, modifiers, javadoc, superClass, interfaces,
+             isDataClass, isObject, isSealed, isCompanion, false, false);
     }
 }
