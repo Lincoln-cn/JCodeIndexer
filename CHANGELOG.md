@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5] - 2026-07-13
+
+### Added
+- **Kotlin 集成测试**: 3 个端到端 Kotlin 项目测试
+  - 完整 Kotlin 项目索引
+  - Java/Kotlin 混合项目
+  - 增量索引 Kotlin 文件
+- **API 文档**: 新增支持语言说明
+
+### Testing
+- 272 个测试全部通过
+
 ## [1.1.4] - 2026-07-13
 
 ### Added
