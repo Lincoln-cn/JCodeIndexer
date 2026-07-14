@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-07-13
+
+### Added
+- **Scala 支持**: 完整的 Scala 语言支持
+  - ScalaParserAdapter 解析 Scala 文件
+  - 支持 class, case class, object, trait
+  - 支持函数、值声明、继承
+  - Indexer 自动扫描 .scala/.sc 文件
+  - MCP 工具完全支持 Scala 代码
+- **测试**: 20 个 Scala 相关测试
+- **API 文档**: 新增 Scala 语言支持说明
+
+### Testing
+- 316 个测试全部通过
+
 ## [1.3.5] - 2026-07-13
 
 ### Added
