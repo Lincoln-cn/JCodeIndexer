@@ -891,6 +891,157 @@ public class StorageService implements AutoCloseable {
         deleteConfigEntriesByFile(filePath);
         deleteDependenciesByFile(filePath);
         deleteFileMeta(filePath);
+        deleteAnnotationsByFile(filePath);
+    }
+
+    // ==================== Annotations ====================
+
+    public long insertAnnotation(Annotation annotation) throws SQLException {
+        String sql = "INSERT INTO annotations (symbol_id, name, attributes) VALUES (?, ?, ?)";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setLong(1, annotation.symbolId());
+            ps.setString(2, annotation.name());
+            ps.setString(3, annotation.attributes() != null ? mapToJson(annotation.attributes()) : null);
+            ps.executeUpdate();
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                return rs.next() ? rs.getLong(1) : -1;
+            }
+        }
+    }
+
+    public void insertAnnotations(List<Annotation> annotations) throws SQLException {
+        if (annotations.isEmpty()) return;
+        String sql = "INSERT INTO annotations (symbol_id, name, attributes) VALUES (?, ?, ?)";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            for (Annotation a : annotations) {
+                ps.setLong(1, a.symbolId());
+                ps.setString(2, a.name());
+                ps.setString(3, a.attributes() != null ? mapToJson(a.attributes()) : null);
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    public List<Annotation> findAnnotationsBySymbol(long symbolId) throws SQLException {
+        String sql = "SELECT id, symbol_id, name, attributes FROM annotations WHERE symbol_id = ?";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setLong(1, symbolId);
+            return mapAnnotations(ps);
+        }
+    }
+
+    public List<Annotation> findAnnotationsBySymbolName(String symbolName) throws SQLException {
+        String sql = """
+            SELECT a.id, a.symbol_id, a.name, a.attributes
+            FROM annotations a
+            JOIN symbols s ON a.symbol_id = s.id
+            WHERE s.name = ? OR s.qualified_name = ?
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, symbolName);
+            ps.setString(2, symbolName);
+            return mapAnnotations(ps);
+        }
+    }
+
+    public List<Symbol> findByAnnotation(String annotationName, int limit) throws SQLException {
+        String sql = """
+            SELECT s.id, s.file_path, s.start_line, s.end_line, s.kind, s.name, s.qualified_name,
+                   s.signature, s.return_type, s.parent_class, s.modifiers, s.javadoc, s.super_class, s.interfaces,
+                   s.is_data_class, s.is_object, s.is_sealed, s.is_companion
+            FROM symbols s
+            JOIN annotations a ON s.id = a.symbol_id
+            WHERE a.name = ?
+            ORDER BY s.qualified_name
+            LIMIT ?
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, annotationName);
+            ps.setInt(2, limit);
+            return mapSymbols(ps);
+        }
+    }
+
+    public void deleteAnnotationsBySymbol(long symbolId) throws SQLException {
+        try (PreparedStatement ps = db.getConnection().prepareStatement(
+                "DELETE FROM annotations WHERE symbol_id = ?")) {
+            ps.setLong(1, symbolId);
+            ps.executeUpdate();
+        }
+    }
+
+    public void deleteAnnotationsByFile(String filePath) throws SQLException {
+        String sql = """
+            DELETE FROM annotations WHERE symbol_id IN (
+                SELECT id FROM symbols WHERE file_path = ?
+            )
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, filePath);
+            ps.executeUpdate();
+        }
+    }
+
+    private List<Annotation> mapAnnotations(PreparedStatement ps) throws SQLException {
+        List<Annotation> list = new ArrayList<>();
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                String attrsJson = rs.getString("attributes");
+                Map<String, String> attributes = null;
+                if (attrsJson != null && !attrsJson.isEmpty()) {
+                    attributes = jsonToMap(attrsJson);
+                }
+                list.add(new Annotation(
+                    rs.getLong("id"),
+                    rs.getLong("symbol_id"),
+                    rs.getString("name"),
+                    attributes
+                ));
+            }
+        }
+        return list;
+    }
+
+    private String mapToJson(Map<String, String> map) {
+        if (map == null || map.isEmpty()) return "{}";
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (var entry : map.entrySet()) {
+            if (!first) sb.append(",");
+            sb.append("\"").append(escapeJson(entry.getKey())).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+            first = false;
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private Map<String, String> jsonToMap(String json) {
+        Map<String, String> map = new HashMap<>();
+        if (json == null || json.isEmpty() || json.equals("{}")) return map;
+        // 简单 JSON 解析
+        json = json.substring(1, json.length() - 1); // 移除 {}
+        String[] pairs = json.split(",");
+        for (String pair : pairs) {
+            String[] kv = pair.split(":");
+            if (kv.length == 2) {
+                String key = unescapeJson(kv[0].trim());
+                String value = unescapeJson(kv[1].trim());
+                map.put(key, value);
+            }
+        }
+        return map;
+    }
+
+    private String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String unescapeJson(String s) {
+        if (s == null) return "";
+        s = s.replace("\"", "");
+        return s.replace("\\\"", "\"").replace("\\\\", "\\");
     }
 
     // ==================== Diff Helpers ====================

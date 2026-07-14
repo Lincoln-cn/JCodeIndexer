@@ -280,4 +280,32 @@ public final class Schema {
             "ALTER TABLE symbols ADD COLUMN is_companion INTEGER DEFAULT 0"
         };
     }
+
+    // v1.2.1: 注解表
+    public static final String CREATE_ANNOTATIONS = """
+        CREATE TABLE IF NOT EXISTS annotations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            attributes TEXT,
+            FOREIGN KEY (symbol_id) REFERENCES symbols(id) ON DELETE CASCADE
+        )
+        """;
+
+    public static final String CREATE_INDEX_ANNOTATIONS_SYMBOL =
+        "CREATE INDEX IF NOT EXISTS idx_annotations_symbol ON annotations(symbol_id)";
+
+    public static final String CREATE_INDEX_ANNOTATIONS_NAME =
+        "CREATE INDEX IF NOT EXISTS idx_annotations_name ON annotations(name)";
+
+    /**
+     * 获取迁移语句（v1.2.1: 添加注解表）
+     */
+    public static String[] migrationV1_2_1() {
+        return new String[] {
+            "CREATE TABLE IF NOT EXISTS annotations (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol_id INTEGER NOT NULL, name TEXT NOT NULL, attributes TEXT, FOREIGN KEY (symbol_id) REFERENCES symbols(id) ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS idx_annotations_symbol ON annotations(symbol_id)",
+            "CREATE INDEX IF NOT EXISTS idx_annotations_name ON annotations(name)"
+        };
+    }
 }
