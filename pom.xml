@@ -6,7 +6,7 @@
 
     <groupId>com.sodlinken</groupId>
     <artifactId>java-code-indexer</artifactId>
-    <version>1.4.2</version>
+    <version>1.4.3</version>
     <packaging>jar</packaging>
 
     <name>Java Code Indexer MCP Tool</name>
