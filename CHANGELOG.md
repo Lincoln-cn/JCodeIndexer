@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-07-13
+
+### Added
+- **Indexer Scala 集成**: Indexer 现在支持 Scala 文件索引
+  - 自动扫描 .scala/.sc 文件
+  - 使用 ScalaParserAdapter 解析
+  - 支持增量索引和 diff 策略
+- **新增测试**: 3 个 Indexer Scala 测试
+
+### Testing
+- 309 个测试全部通过
+
 ## [1.3.2] - 2026-07-13
 
 ### Added
