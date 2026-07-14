@@ -118,7 +118,20 @@ public class DatabaseManager implements AutoCloseable {
      */
     private void runMigrations() {
         try (Statement stmt = connection.createStatement()) {
+            // v1.0.1: 添加继承关系字段
             for (String sql : Schema.migrationV1_0_1()) {
+                try {
+                    stmt.execute(sql);
+                    log.debug("迁移执行成功: {}", sql);
+                } catch (SQLException e) {
+                    // 字段已存在，忽略
+                    if (!e.getMessage().contains("already exists")) {
+                        log.warn("迁移执行失败: {}", sql, e);
+                    }
+                }
+            }
+            // v1.1.1: 添加 Kotlin 特有字段
+            for (String sql : Schema.migrationV1_1_1()) {
                 try {
                     stmt.execute(sql);
                     log.debug("迁移执行成功: {}", sql);
