@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-07-13
+
+### Added
+- **Kotlin 解析器**: 新增 KotlinParserAdapter
+  - 支持 class, object, data class, sealed class
+  - 支持函数和属性提取
+  - 支持继承和接口实现
+  - 支持 import 引用
+- **新增测试**: 12 个 Kotlin 解析测试
+
+### Testing
+- 258 个测试全部通过
+
 ## [1.1.1] - 2026-07-13
 
 ### Added
