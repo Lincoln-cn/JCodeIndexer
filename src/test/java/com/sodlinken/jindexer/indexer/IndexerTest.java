@@ -529,6 +529,56 @@ class IndexerTest {
         // 注解存储将在 v1.2.4 实现
     }
 
+    @Test
+    void indexScalaFile() throws Exception {
+        createFile("UserService.scala", """
+            package com.example
+
+            class UserService {
+                def save() {}
+                def find(id: Long) {}
+            }
+            """);
+
+        IndexResult result = indexer.index();
+
+        assertEquals(1, result.totalFiles());
+
+        // Verify symbols were indexed
+        List<Symbol> symbols = storage.findSymbolsByFile("UserService.scala");
+        assertFalse(symbols.isEmpty());
+    }
+
+    @Test
+    void indexScalaCaseClass() throws Exception {
+        createFile("User.scala", """
+            package com.example
+
+            case class User(name: String, age: Int)
+            """);
+
+        indexer.index();
+
+        List<Symbol> symbols = storage.findSymbolsByFile("User.scala");
+        assertFalse(symbols.isEmpty());
+    }
+
+    @Test
+    void indexScalaTrait() throws Exception {
+        createFile("Repository.scala", """
+            package com.example
+
+            trait Repository[T] {
+                def findById(id: Long): Option[T]
+            }
+            """);
+
+        indexer.index();
+
+        List<Symbol> symbols = storage.findSymbolsByFile("Repository.scala");
+        assertFalse(symbols.isEmpty());
+    }
+
     // ==================== Helper Methods ====================
 
     private Path createJavaFile(String fileName, String content) throws Exception {
