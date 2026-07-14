@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-07-13
+
+### Added
+- **Gradle 解析器测试**: 13 个测试覆盖 Groovy/Kotlin DSL、版本变量、scope 映射
+- **配置文件解析器测试**: 19 个测试覆盖 YAML/Properties/ENV 格式
+- **数据库管理器测试**: 10 个测试覆盖事务、初始化、连接管理
+- **StorageService 边界测试**: 29 个测试覆盖空值、重复、批量、特殊字符
+- **Chunker 边界测试**: 21 个测试覆盖空文件、嵌套类、Record、Lambda
+- **Indexer 单元测试**: 21 个测试覆盖增量索引、文件变更、错误处理
+- **MCP 工具集成测试**: 27 个测试覆盖所有工具边界情况
+- **性能基准测试**: 11 个测试覆盖索引速度、搜索延迟、内存占用
+
+### Changed
+- **文档完善**: 新增配置详解、故障排查、贡献者指南
+- **API 参考更新**: 补充 search_all_projects、health 工具文档
+- **架构设计更新**: 反映最新工具数量和模块结构
+
+### Testing
+- 223 个单元测试全部通过 (+210%)
+- 覆盖所有核心模块边界情况
+
 ## [0.7.2] - 2026-07-13
 
 ### Added

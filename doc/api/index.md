@@ -12,6 +12,8 @@
 | `search_config` | 搜索配置文件中的 key-value |
 | `find_dependencies` | 查找项目依赖（Maven POM / Gradle） |
 | `list_projects` | 列出所有已索引的项目（多项目模式） |
+| `search_all_projects` | 跨所有项目搜索（多项目模式） |
+| `health` | 健康检查，返回系统状态 |
 
 ---
 
@@ -249,5 +251,59 @@
   ],
   "total": 1,
   "default_project": "backend"
+}
+```
+
+---
+
+### search_all_projects
+
+跨所有项目搜索符号。仅在多项目模式下可用。
+
+**参数：**
+- `query` (string, 必填) — 搜索关键词
+- `limit` (integer, 可选) — 每个项目最大返回数，默认 10
+
+**返回：**
+```json
+{
+  "results": {
+    "backend": [
+      {
+        "id": 1,
+        "name": "UserService",
+        "qualified_name": "com.example.UserService",
+        "kind": "CLASS",
+        "file": "src/main/java/.../UserService.java"
+      }
+    ],
+    "frontend": []
+  },
+  "total_hits": 1,
+  "projects_searched": 2
+}
+```
+
+---
+
+### health
+
+健康检查，返回系统状态和索引统计信息。
+
+**参数：** 无
+
+**返回：**
+```json
+{
+  "status": "healthy",
+  "uptime_seconds": 3600,
+  "projects": {
+    "default": {
+      "symbols": 1234,
+      "chunks": 5678,
+      "files_indexed": 100,
+      "db_size_mb": 12.5
+    }
+  }
 }
 ```

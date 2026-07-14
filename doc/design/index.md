@@ -9,17 +9,17 @@ AI 助手 (Qwen Code / Claude / Cursor)
 ┌─────────────────────────────────────────┐
 │              McpServer                  │
 │  ┌──────────────────────────────────┐   │
-│  │  ToolDispatcher (8 tools)        │   │
+│  │  ToolDispatcher (10 tools)       │   │
 │  │  find_symbol | find_references   │   │
 │  │  get_call_graph | search_code    │   │
 │  │  get_file_info | search_config   │   │
 │  │  find_dependencies               │   │
 │  │  list_projects                   │   │
+│  │  search_all_projects | health    │   │
 │  └──────────────────────────────────┘   │
 ├─────────────────────────────────────────┤
 │  SearchProvider                         │
-│  ├─ StructuredSearch (LIKE query)       │
-│  └─ SemanticSearch (JVector ANN)        │
+│  └─ StructuredSearch (FTS5)             │
 ├─────────────────────────────────────────┤
 │  StorageService (JDBC + SQLite WAL)     │
 ├─────────────────────────────────────────┤
@@ -36,13 +36,13 @@ AI 助手 (Qwen Code / Claude / Cursor)
 | 模块 | 路径 | 职责 |
 |------|------|------|
 | `cli/` | CLI 入口 | 参数解析，启动 MCP server 或执行索引 |
-| `mcp/` | MCP server | JSON-RPC over stdio，注册 9 个工具 |
+| `mcp/` | MCP server | JSON-RPC over stdio，注册 10 个工具 |
 | `config/` | 配置加载 | YAML 配置 + 环境变量覆盖 |
-| `storage/` | 存储层 | SQLite schema + CRUD 操作 |
+| `storage/` | 存储层 | SQLite schema + CRUD + FTS5 |
 | `indexer/` | 索引引擎 | 增量索引，SHA-1 哈希跳过 |
 | `parser/` | 解析器 | Java/POM/Gradle/Config 文件解析 |
 | `chunker/` | 代码切片 | 按类/方法粒度切分代码块 |
-| `search/` | 搜索提供者 | 结构化搜索 + 语义搜索 |
+| `search/` | 搜索提供者 | FTS5 全文搜索 |
 | `model/` | 数据模型 | Symbol, Call, Chunk 等 record |
 | `util/` | 工具类 | SHA-1 哈希等 |
 
@@ -150,5 +150,5 @@ projects:
 
 - 传输：stdio（JSON-RPC 2.0）
 - 帧格式：`Content-Length: N\r\n\r\n{json}` 或裸 JSON 行
-- 工具注册：`tools/list` 返回 9 个工具定义
+- 工具注册：`tools/list` 返回 10 个工具定义
 - 工具调用：`tools/call` 路由到对应实现
