@@ -1,6 +1,7 @@
 package com.sodlinken.jindexer.parser;
 
 import com.sodlinken.jindexer.config.Config;
+import com.sodlinken.jindexer.model.Annotation;
 import com.sodlinken.jindexer.model.Call;
 import com.sodlinken.jindexer.model.Reference;
 import com.sodlinken.jindexer.model.Symbol;
@@ -11,7 +12,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -82,6 +85,7 @@ public class KotlinParserAdapter {
         List<Symbol> symbols = new ArrayList<>();
         List<Reference> references = new ArrayList<>();
         List<Call> calls = new ArrayList<>();
+        List<Annotation> annotations = new ArrayList<>();
         List<String> errors = new ArrayList<>();
 
         try {
@@ -106,6 +110,9 @@ public class KotlinParserAdapter {
             // 提取函数调用
             extractCalls(content, lines, relativePath, calls);
 
+            // 提取注解（简单正则匹配）
+            extractAnnotations(content, symbols, annotations);
+
         } catch (IOException e) {
             log.warn("读取 Kotlin 文件失败: {}", relativePath, e);
             errors.add(relativePath + ": " + e.getMessage());
@@ -114,7 +121,7 @@ public class KotlinParserAdapter {
             errors.add(relativePath + ": " + e.getMessage());
         }
 
-        return new ParseResult(symbols, references, calls, errors);
+        return new ParseResult(symbols, references, calls, annotations, errors);
     }
 
     /**
@@ -378,5 +385,27 @@ public class KotlinParserAdapter {
                  "override", "open", "abstract", "data", "sealed", "suspend" -> true;
             default -> false;
         };
+    }
+
+    /**
+     * 提取 Kotlin 注解（简单正则匹配）
+     */
+    private void extractAnnotations(String content, List<Symbol> symbols, List<Annotation> annotations) {
+        // 匹配 @AnnotationName 或 @AnnotationName(params)
+        Pattern annPattern = Pattern.compile("@(\\w+)(?:\\(([^)]*)\\))?");
+        Matcher m = annPattern.matcher(content);
+
+        while (m.find()) {
+            String annName = m.group(1);
+            String params = m.group(2);
+            Map<String, String> attributes = new LinkedHashMap<>();
+
+            if (params != null && !params.isEmpty()) {
+                attributes.put("value", params);
+            }
+
+            // 使用空 symbolId 占位（实际 ID 在存储时分配）
+            annotations.add(new Annotation(0, 0, annName, attributes));
+        }
     }
 }

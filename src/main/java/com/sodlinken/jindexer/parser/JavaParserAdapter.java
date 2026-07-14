@@ -11,6 +11,7 @@ import com.github.javaparser.ast.nodeTypes.NodeWithJavadoc;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import com.sodlinken.jindexer.config.Config;
+import com.sodlinken.jindexer.model.Annotation;
 import com.sodlinken.jindexer.model.Call;
 import com.sodlinken.jindexer.model.Reference;
 import com.sodlinken.jindexer.model.Symbol;
@@ -20,9 +21,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * JavaParser 适配器，解析 Java 文件提取符号/引用/调用关系
@@ -51,6 +50,7 @@ public class JavaParserAdapter {
         List<Symbol> symbols = new ArrayList<>();
         List<Reference> references = new ArrayList<>();
         List<Call> calls = new ArrayList<>();
+        List<Annotation> annotations = new ArrayList<>();
         List<String> errors = new ArrayList<>();
 
         try {
@@ -91,6 +91,9 @@ public class JavaParserAdapter {
                     interfaces.isEmpty() ? null : interfaces
                 ));
 
+                // 提取类注解
+                extractAnnotations(clazz.getAnnotations(), qualifiedName, annotations);
+
                 // 方法符号
                 clazz.getMethods().forEach(method -> {
                     String methodName = method.getNameAsString();
@@ -109,6 +112,9 @@ public class JavaParserAdapter {
                         extractModifiers(method.getModifiers()),
                         config.isExtractJavadoc() ? extractJavadoc(method) : null
                     ));
+
+                    // 提取方法注解
+                    extractAnnotations(method.getAnnotations(), methodQualified, annotations);
 
                     // 提取方法内的调用关系
                     method.findAll(MethodCallExpr.class).forEach(callExpr -> {
@@ -291,7 +297,7 @@ public class JavaParserAdapter {
             log.warn("解析文件失败: {}", relativePath, e);
         }
 
-        return new ParseResult(symbols, references, calls, errors);
+        return new ParseResult(symbols, references, calls, annotations, errors);
     }
 
     private String buildClassSignature(ClassOrInterfaceDeclaration clazz) {
@@ -397,5 +403,31 @@ public class JavaParserAdapter {
             return scope.get().toString() + "." + callExpr.getNameAsString();
         }
         return callExpr.getNameAsString();
+    }
+
+    /**
+     * 提取注解信息
+     */
+    private void extractAnnotations(NodeList<AnnotationExpr> annotationExprs,
+                                    String qualifiedName,
+                                    List<Annotation> annotations) {
+        for (AnnotationExpr annExpr : annotationExprs) {
+            String annName = annExpr.getNameAsString();
+            Map<String, String> attributes = new LinkedHashMap<>();
+
+            if (annExpr instanceof SingleMemberAnnotationExpr single) {
+                // @RequestMapping("/api/users")
+                attributes.put("value", single.getMemberValue().toString());
+            } else if (annExpr instanceof NormalAnnotationExpr normal) {
+                // @RequestMapping(path = "/api/users", method = GET)
+                normal.getPairs().forEach(pair -> {
+                    attributes.put(pair.getNameAsString(), pair.getValue().toString());
+                });
+            }
+            // MarkerAnnotationExpr (@Override) has no attributes
+
+            // 使用 qualifiedName 作为 symbolId 的占位符（实际 ID 在存储时分配）
+            annotations.add(new Annotation(0, 0, annName, attributes));
+        }
     }
 }
