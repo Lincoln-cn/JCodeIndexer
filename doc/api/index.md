@@ -24,6 +24,8 @@
 | `find_implementations` | 查找接口的所有实现类 |
 | `find_overrides` | 查找方法的所有重写 |
 | `find_usages` | 查找字段的所有使用位置 |
+| `find_annotations` | 查找符号的所有注解 |
+| `find_by_annotation` | 查找带特定注解的符号 |
 
 ---
 
