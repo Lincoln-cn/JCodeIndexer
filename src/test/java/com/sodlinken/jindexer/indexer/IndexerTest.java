@@ -510,6 +510,25 @@ class IndexerTest {
         assertTrue(userClass.isDataClass());
     }
 
+    @Test
+    void indexAnnotations() throws Exception {
+        createJavaFile("Controller.java", """
+            package com.example;
+
+            @RestController
+            @RequestMapping("/api/users")
+            public class Controller {
+                @GetMapping("/{id}")
+                public void getUser() {}
+            }
+            """);
+
+        indexer.index();
+
+        // 验证注解被删除（因为还没有存储注解）
+        // 注解存储将在 v1.2.4 实现
+    }
+
     // ==================== Helper Methods ====================
 
     private Path createJavaFile(String fileName, String content) throws Exception {

@@ -314,6 +314,9 @@ public class Indexer {
             storage.insertCall(call);
         }
 
+        // --- 注解：先删旧的，再插入新的 ---
+        storage.deleteAnnotationsByFile(relativePath);
+
         // --- 代码块 diff ---
         String packageName = "";
         for (Symbol s : newSymbols) {
@@ -419,6 +422,9 @@ public class Indexer {
         for (Call call : parsed.calls()) {
             storage.insertCall(call);
         }
+
+        // --- 注解：先删旧的 ---
+        storage.deleteAnnotationsByFile(relativePath);
 
         // --- 代码块 diff ---
         String packageName = "";
