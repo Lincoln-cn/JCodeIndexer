@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-07-13
+
+### Added
+- **注解提取**: JavaParserAdapter 和 KotlinParserAdapter 支持提取注解
+  - 支持类注解
+  - 支持方法注解
+  - 支持 Marker 注解 (@Override)
+  - 支持 SingleMember 注解 (@RequestMapping)
+  - 支持 Normal 注解 (@Table)
+- **ParseResult 扩展**: 新增 annotations 字段
+- **新增测试**: 4 个注解提取测试
+
+### Testing
+- 285 个测试全部通过
+
 ## [1.2.1] - 2026-07-13
 
 ### Added

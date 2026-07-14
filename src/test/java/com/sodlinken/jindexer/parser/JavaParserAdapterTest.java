@@ -283,4 +283,90 @@ class JavaParserAdapterTest {
         assertEquals(1, recordSymbol.interfaces().size());
         assertEquals("Comparable", recordSymbol.interfaces().getFirst());
     }
+
+    @Test
+    void markerAnnotationExtraction() throws IOException {
+        Path file = tempDir.resolve("Annotated.java");
+        Files.writeString(file, """
+            package com.example;
+
+            @Deprecated
+            public class Annotated {
+                @Override
+                public String toString() { return ""; }
+            }
+            """);
+
+        ParseResult result = adapter.parse("Annotated.java", file);
+
+        assertFalse(result.annotations().isEmpty());
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("Deprecated")));
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("Override")));
+    }
+
+    @Test
+    void singleMemberAnnotationExtraction() throws IOException {
+        Path file = tempDir.resolve("Controller.java");
+        Files.writeString(file, """
+            package com.example;
+
+            @RestController
+            @RequestMapping("/api/users")
+            public class Controller {
+            }
+            """);
+
+        ParseResult result = adapter.parse("Controller.java", file);
+
+        var mapping = result.annotations().stream()
+            .filter(a -> a.name().equals("RequestMapping"))
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(mapping);
+        assertNotNull(mapping.attributes());
+        assertTrue(mapping.attributes().containsKey("value"));
+    }
+
+    @Test
+    void normalAnnotationExtraction() throws IOException {
+        Path file = tempDir.resolve("Entity.java");
+        Files.writeString(file, """
+            package com.example;
+
+            @Table(name = "users")
+            public class Entity {
+            }
+            """);
+
+        ParseResult result = adapter.parse("Entity.java", file);
+
+        var table = result.annotations().stream()
+            .filter(a -> a.name().equals("Table"))
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(table);
+        assertNotNull(table.attributes());
+        assertTrue(table.attributes().containsKey("name"));
+    }
+
+    @Test
+    void methodAnnotationExtraction() throws IOException {
+        Path file = tempDir.resolve("Service.java");
+        Files.writeString(file, """
+            package com.example;
+
+            public class Service {
+                @Transactional
+                @GetMapping("/{id}")
+                public void getUser() {}
+            }
+            """);
+
+        ParseResult result = adapter.parse("Service.java", file);
+
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("Transactional")));
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("GetMapping")));
+    }
 }
