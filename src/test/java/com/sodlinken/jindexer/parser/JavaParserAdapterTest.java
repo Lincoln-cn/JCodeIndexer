@@ -369,4 +369,63 @@ class JavaParserAdapterTest {
         assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("Transactional")));
         assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("GetMapping")));
     }
+
+    @Test
+    void springBootAnnotations() throws IOException {
+        Path file = tempDir.resolve("UserController.java");
+        Files.writeString(file, """
+            package com.example;
+
+            @RestController
+            @RequestMapping("/api/users")
+            public class UserController {
+                public void getUser() {}
+            }
+            """);
+
+        ParseResult result = adapter.parse("UserController.java", file);
+
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("RestController")));
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("RequestMapping")));
+    }
+
+    @Test
+    void jpaAnnotations() throws IOException {
+        Path file = tempDir.resolve("User.java");
+        Files.writeString(file, """
+            package com.example;
+
+            @Entity
+            @Table(name = "users")
+            public class User {
+            }
+            """);
+
+        ParseResult result = adapter.parse("User.java", file);
+
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("Entity")));
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("Table")));
+    }
+
+    @Test
+    void lombokAnnotations() throws IOException {
+        Path file = tempDir.resolve("DataClass.java");
+        Files.writeString(file, """
+            package com.example;
+
+            @Data
+            @Builder
+            @NoArgsConstructor
+            @AllArgsConstructor
+            public class DataClass {
+            }
+            """);
+
+        ParseResult result = adapter.parse("DataClass.java", file);
+
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("Data")));
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("Builder")));
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("NoArgsConstructor")));
+        assertTrue(result.annotations().stream().anyMatch(a -> a.name().equals("AllArgsConstructor")));
+    }
 }
