@@ -126,6 +126,9 @@ jobs:
           - os: darwin
             arch: arm64
             runner: macos-latest
+          - os: windows
+            arch: amd64
+            runner: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -471,6 +474,7 @@ jobs:
             dist/java-code-indexer-*.jar
             dist/java-code-indexer-*-linux-amd64.tar.gz
             dist/java-code-indexer-*-darwin-arm64.tar.gz
+            dist/java-code-indexer-*-windows-amd64.zip
             dist/docker-image-*.tar.gz
             dist/checksums-*.sha256
           fail_on_unmatched_files: false
