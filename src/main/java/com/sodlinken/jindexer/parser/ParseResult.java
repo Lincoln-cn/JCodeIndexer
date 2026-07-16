@@ -1,9 +1,6 @@
 package com.sodlinken.jindexer.parser;
 
-import com.sodlinken.jindexer.model.Annotation;
-import com.sodlinken.jindexer.model.Call;
-import com.sodlinken.jindexer.model.Reference;
-import com.sodlinken.jindexer.model.Symbol;
+import com.sodlinken.jindexer.model.*;
 
 import java.util.List;
 
@@ -15,9 +12,14 @@ public record ParseResult(
     List<Reference> references,
     List<Call> calls,
     List<Annotation> annotations,
-    List<String> errors
+    List<String> errors,
+    List<ApiRoute> apiRoutes,
+    List<BeanDependency> beanDependencies,
+    List<TestMapping> testMappings,
+    List<AnnotationRef> annotationRefs
 ) {
     public static ParseResult empty() {
-        return new ParseResult(List.of(), List.of(), List.of(), List.of(), List.of());
+        return new ParseResult(List.of(), List.of(), List.of(), List.of(), List.of(),
+            List.of(), List.of(), List.of(), List.of());
     }
 }

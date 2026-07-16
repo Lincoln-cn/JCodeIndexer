@@ -7,14 +7,18 @@ import com.github.javaparser.ast.Modifier;
 import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.expr.*;
+import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
 import com.github.javaparser.ast.nodeTypes.NodeWithJavadoc;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import com.sodlinken.jindexer.config.Config;
 import com.sodlinken.jindexer.model.Annotation;
+import com.sodlinken.jindexer.model.ApiRoute;
+import com.sodlinken.jindexer.model.BeanDependency;
 import com.sodlinken.jindexer.model.Call;
 import com.sodlinken.jindexer.model.Reference;
 import com.sodlinken.jindexer.model.Symbol;
+import com.sodlinken.jindexer.model.TestMapping;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +56,8 @@ public class JavaParserAdapter {
         List<Call> calls = new ArrayList<>();
         List<Annotation> annotations = new ArrayList<>();
         List<String> errors = new ArrayList<>();
+        List<ApiRoute> apiRoutes = new ArrayList<>();
+        List<BeanDependency> beanDependencies = new ArrayList<>();
 
         try {
             String content = Files.readString(filePath);
@@ -93,6 +99,12 @@ public class JavaParserAdapter {
 
                 // 提取类注解
                 extractAnnotations(clazz.getAnnotations(), qualifiedName, annotations);
+
+                // 提取 API 路由
+                apiRoutes.addAll(extractApiRoutes(clazz, relativePath));
+
+                // 提取 Bean 依赖
+                beanDependencies.addAll(extractBeanDependencies(clazz, relativePath));
 
                 // 方法符号
                 clazz.getMethods().forEach(method -> {
@@ -297,7 +309,11 @@ public class JavaParserAdapter {
             log.warn("解析文件失败: {}", relativePath, e);
         }
 
-        return new ParseResult(symbols, references, calls, annotations, errors);
+        // 提取测试映射
+        List<TestMapping> testMappings = extractTestMappings(relativePath, symbols);
+
+        return new ParseResult(symbols, references, calls, annotations, errors,
+            apiRoutes, beanDependencies, testMappings, List.of());
     }
 
     private String buildClassSignature(ClassOrInterfaceDeclaration clazz) {
@@ -429,5 +445,187 @@ public class JavaParserAdapter {
             // 使用 qualifiedName 作为 symbolId 的占位符（实际 ID 在存储时分配）
             annotations.add(new Annotation(0, 0, annName, attributes));
         }
+    }
+
+    /**
+     * 提取 API 路由注解（@RequestMapping, @GetMapping 等）
+     */
+    private List<ApiRoute> extractApiRoutes(ClassOrInterfaceDeclaration clazz, String relativePath) {
+        List<ApiRoute> routes = new ArrayList<>();
+
+        // 类级别 @RequestMapping → basePath
+        String basePath = "";
+        for (AnnotationExpr ann : clazz.getAnnotations()) {
+            if (ann.getNameAsString().equals("RequestMapping")) {
+                basePath = cleanString(extractPathAttribute(ann));
+            }
+        }
+
+        // 方法级别注解 → route
+        for (MethodDeclaration method : clazz.getMethods()) {
+            for (AnnotationExpr ann : method.getAnnotations()) {
+                String httpMethod = getHttpMethod(ann.getNameAsString());
+                if (httpMethod == null) continue;
+
+                String methodPath = "";
+                if (ann instanceof NormalAnnotationExpr normal) {
+                    // 从 method 属性提取（@RequestMapping(method = GET)）
+                    if (ann.getNameAsString().equals("RequestMapping")) {
+                        for (var pair : normal.getPairs()) {
+                            if ("method".equals(pair.getNameAsString())) {
+                                httpMethod = extractRequestMethod(pair.getValue());
+                            }
+                        }
+                    }
+                    methodPath = cleanString(extractPathAttribute(ann));
+                } else if (ann instanceof SingleMemberAnnotationExpr single) {
+                    methodPath = cleanString(single.getMemberValue().toString());
+                }
+
+                String fullPath = basePath + methodPath;
+                if (fullPath.isEmpty()) fullPath = "/";
+
+                routes.add(new ApiRoute(0, 0, httpMethod, fullPath, basePath, methodPath,
+                    relativePath, method.getBegin().map(p -> p.line).orElse(0)));
+            }
+        }
+        return routes;
+    }
+
+    private String getHttpMethod(String name) {
+        return switch (name) {
+            case "GetMapping" -> "GET";
+            case "PostMapping" -> "POST";
+            case "PutMapping" -> "PUT";
+            case "DeleteMapping" -> "DELETE";
+            case "PatchMapping" -> "PATCH";
+            case "RequestMapping" -> "GET"; // 默认 GET，后面可能覆盖
+            default -> null;
+        };
+    }
+
+    private String extractPathAttribute(AnnotationExpr ann) {
+        if (ann instanceof SingleMemberAnnotationExpr single) {
+            return single.getMemberValue().toString();
+        }
+        if (ann instanceof NormalAnnotationExpr normal) {
+            for (var pair : normal.getPairs()) {
+                if ("value".equals(pair.getNameAsString()) || "path".equals(pair.getNameAsString())) {
+                    return pair.getValue().toString();
+                }
+            }
+        }
+        return "";
+    }
+
+    private String extractRequestMethod(Expression expr) {
+        String s = expr.toString();
+        // 处理 RequestMethod.GET / GET 等格式
+        if (s.contains(".")) {
+            s = s.substring(s.lastIndexOf('.') + 1);
+        }
+        return switch (s.trim().toUpperCase()) {
+            case "GET" -> "GET";
+            case "POST" -> "POST";
+            case "PUT" -> "PUT";
+            case "DELETE" -> "DELETE";
+            case "PATCH" -> "PATCH";
+            default -> "GET";
+        };
+    }
+
+    private String cleanString(String s) {
+        if (s == null) return "";
+        return s.replace("\"", "").replace("'", "").trim();
+    }
+
+    /**
+     * 提取 Bean 依赖关系（@Autowired, @Inject）
+     */
+    private List<BeanDependency> extractBeanDependencies(ClassOrInterfaceDeclaration clazz, String relativePath) {
+        List<BeanDependency> deps = new ArrayList<>();
+
+        // 1. 字段注入
+        for (FieldDeclaration field : clazz.getFields()) {
+            if (hasAnyAnnotation(field, "Autowired", "Inject", "Resource")) {
+                String type = field.getElementType().asString();
+                String fieldName = field.getVariable(0).getNameAsString();
+                deps.add(new BeanDependency(0, 0, null, type, "FIELD", fieldName,
+                    relativePath, field.getBegin().map(p -> p.line).orElse(0)));
+            }
+        }
+
+        // 2. 构造函数注入
+        for (ConstructorDeclaration ctor : clazz.getConstructors()) {
+            boolean autowired = hasAnyAnnotation(ctor, "Autowired", "Inject");
+            if (autowired || ctor.getParameters().size() > 1) {
+                for (Parameter param : ctor.getParameters()) {
+                    String type = param.getType().asString();
+                    deps.add(new BeanDependency(0, 0, null, type, "CONSTRUCTOR",
+                        param.getNameAsString(), relativePath,
+                        ctor.getBegin().map(p -> p.line).orElse(0)));
+                }
+            }
+        }
+
+        // 3. Setter 注入
+        for (MethodDeclaration method : clazz.getMethods()) {
+            if (method.getNameAsString().startsWith("set") && method.getParameters().size() == 1
+                && hasAnyAnnotation(method, "Autowired", "Inject")) {
+                String type = method.getParameter(0).getType().asString();
+                deps.add(new BeanDependency(0, 0, null, type, "SETTER",
+                    method.getNameAsString(), relativePath,
+                    method.getBegin().map(p -> p.line).orElse(0)));
+            }
+        }
+
+        return deps;
+    }
+
+    private boolean hasAnyAnnotation(NodeWithAnnotations<?> node, String... names) {
+        for (AnnotationExpr ann : node.getAnnotations()) {
+            for (String name : names) {
+                if (ann.getNameAsString().equals(name)) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 提取测试映射：XxxTest → Xxx, XxxTests → Xxx, XxxSpec → Xxx, TestXxx → Xxx
+     */
+    private List<TestMapping> extractTestMappings(String relativePath, List<Symbol> symbols) {
+        List<TestMapping> mappings = new ArrayList<>();
+
+        for (Symbol s : symbols) {
+            if (s.kind() != Symbol.SymbolKind.CLASS) continue;
+
+            String testName = s.name();
+            String sourceName = inferSourceClassName(testName);
+            if (sourceName == null) continue;
+
+            mappings.add(new TestMapping(0, 0, null, testName, sourceName,
+                "NAME_PATTERN", relativePath));
+        }
+        return mappings;
+    }
+
+    /**
+     * 从测试类名推断源类名
+     */
+    private String inferSourceClassName(String name) {
+        if (name.endsWith("Test") && name.length() > 4) {
+            return name.substring(0, name.length() - 4);
+        }
+        if (name.endsWith("Tests") && name.length() > 5) {
+            return name.substring(0, name.length() - 5);
+        }
+        if (name.endsWith("Spec") && name.length() > 4) {
+            return name.substring(0, name.length() - 4);
+        }
+        if (name.startsWith("Test") && name.length() > 4) {
+            return name.substring(4);
+        }
+        return null;
     }
 }

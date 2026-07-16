@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-07-16
+
+### Added
+- **API 路由映射**: Spring Boot API 路由自动提取
+  - 支持 @GetMapping, @PostMapping, @PutMapping, @DeleteMapping, @PatchMapping
+  - 支持 @RequestMapping 的 method 属性提取
+  - 类级别 + 方法级别路径自动拼接
+  - 新增 MCP 工具: `find_api_routes`, `find_route`
+- **类型层次结构**: 完整的类继承链查询
+  - 向上查询父类链和实现的接口
+  - 向下查询所有子类
+  - 新增 MCP 工具: `get_type_hierarchy`
+- **Bean 依赖图**: Spring Bean 注入关系自动提取
+  - 支持字段注入 (@Autowired, @Inject, @Resource)
+  - 支持构造函数注入
+  - 支持 Setter 注入
+  - 新增 MCP 工具: `get_bean_dependencies`, `get_bean_dependents`
+- **测试覆盖映射**: 测试类与源类自动关联
+  - 支持 XxxTest, XxxTests, XxxSpec, TestXxx 命名模式
+  - 新增 MCP 工具: `find_related_tests`
+- **Bug 修复**:
+  - 修复注解索引丢失问题（每次 re-index 注解被清空）
+  - 修复批量 insertSymbols 缺少 Scala 字段 (is_trait, is_case_class)
+- **数据库**: 新增 3 个表 (api_routes, bean_dependencies, test_mappings) + 9 个索引
+- **测试**: 54 个新测试，总计 384 个测试全部通过
+
+### MCP Tools
+- 工具总数: 15 → 22
+- 新增工具: `find_api_routes`, `find_route`, `get_type_hierarchy`, `get_bean_dependencies`, `get_bean_dependents`, `find_related_tests`
+
 ## [1.5.0] - 2026-07-13
 
 ### Added

@@ -340,6 +340,50 @@ public class McpServer {
         if (multiProject) findByAnnotationParams.put("project", projectParam);
         toolsArray.add(createTool("find_by_annotation", "查找带特定注解的所有符号", findByAnnotationParams));
 
+        // 17. find_api_routes（查找 API 路由映射）
+        Map<String, Object> findApiRoutesParams = new LinkedHashMap<>();
+        findApiRoutesParams.put("query", Map.of("type", "string", "description", "路径关键词"));
+        findApiRoutesParams.put("http_method", Map.of("type", "string", "description", "HTTP 方法过滤: GET/POST/PUT/DELETE/PATCH"));
+        findApiRoutesParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 50));
+        if (multiProject) findApiRoutesParams.put("project", projectParam);
+        toolsArray.add(createTool("find_api_routes", "查找 API 路由映射（URL → Controller 方法）", findApiRoutesParams));
+
+        // 18. find_route（根据 HTTP 方法和路径查找路由）
+        Map<String, Object> findRouteParams = new LinkedHashMap<>();
+        findRouteParams.put("http_method", Map.of("type", "string", "description", "HTTP 方法: GET/POST/PUT/DELETE/PATCH"));
+        findRouteParams.put("path", Map.of("type", "string", "description", "URL 路径: /api/users/123"));
+        if (multiProject) findRouteParams.put("project", projectParam);
+        toolsArray.add(createTool("find_route", "根据 HTTP 方法和路径查找对应的 Controller 方法", findRouteParams));
+
+        // 19. get_type_hierarchy（获取类的继承层次结构）
+        Map<String, Object> typeHierarchyParams = new LinkedHashMap<>();
+        typeHierarchyParams.put("class_name", Map.of("type", "string", "description", "类名或限定名"));
+        typeHierarchyParams.put("direction", Map.of("type", "string", "description", "up（父类链）| down（子类树）| both（双向）", "default", "both"));
+        typeHierarchyParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 50));
+        if (multiProject) typeHierarchyParams.put("project", projectParam);
+        toolsArray.add(createTool("get_type_hierarchy", "获取类的完整继承层次结构（父类链 + 子类树）", typeHierarchyParams));
+
+        // 20. get_bean_dependencies（查找 Bean 的依赖）
+        Map<String, Object> beanDepsParams = new LinkedHashMap<>();
+        beanDepsParams.put("bean_name", Map.of("type", "string", "description", "Bean 名称或限定名"));
+        beanDepsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) beanDepsParams.put("project", projectParam);
+        toolsArray.add(createTool("get_bean_dependencies", "查找 Bean 的依赖（它依赖哪些其他 Bean）", beanDepsParams));
+
+        // 21. get_bean_dependents（查找依赖该 Bean 的其他 Bean）
+        Map<String, Object> beanDependentsParams = new LinkedHashMap<>();
+        beanDependentsParams.put("bean_name", Map.of("type", "string", "description", "Bean 名称或限定名"));
+        beanDependentsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) beanDependentsParams.put("project", projectParam);
+        toolsArray.add(createTool("get_bean_dependents", "查找依赖该 Bean 的其他 Bean（谁注入了它）", beanDependentsParams));
+
+        // 22. find_related_tests（查找与源代码相关的测试类）
+        Map<String, Object> relatedTestsParams = new LinkedHashMap<>();
+        relatedTestsParams.put("class_name", Map.of("type", "string", "description", "源类名或限定名"));
+        relatedTestsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 10));
+        if (multiProject) relatedTestsParams.put("project", projectParam);
+        toolsArray.add(createTool("find_related_tests", "查找与源代码相关的测试类", relatedTestsParams));
+
         JsonObject result = new JsonObject();
         result.add("tools", toolsArray);
         sendResult(id, result);
@@ -366,6 +410,12 @@ public class McpServer {
                 case "find_usages" -> callFindUsages(arguments);
                 case "find_annotations" -> callFindAnnotations(arguments);
                 case "find_by_annotation" -> callFindByAnnotation(arguments);
+                case "find_api_routes" -> callFindApiRoutes(arguments);
+                case "find_route" -> callFindRoute(arguments);
+                case "get_type_hierarchy" -> callGetTypeHierarchy(arguments);
+                case "get_bean_dependencies" -> callGetBeanDependencies(arguments);
+                case "get_bean_dependents" -> callGetBeanDependents(arguments);
+                case "find_related_tests" -> callFindRelatedTests(arguments);
                 default -> Map.of("error", "Unknown tool: " + toolName);
             };
             sendToolResult(id, result);
@@ -702,6 +752,244 @@ public class McpServer {
                 "line", s.startLine()
             )).toList(),
             "total", symbols.size()
+        );
+    }
+
+    // ==================== v1.6.0 Tools ====================
+
+    private Map<String, Object> callFindApiRoutes(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String query = args.has("query") ? args.get("query").getAsString() : "";
+        String httpMethod = args.has("http_method") ? args.get("http_method").getAsString() : null;
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 50;
+
+        var routes = storage.searchApiRoutes(query, httpMethod, limit);
+        return Map.of(
+            "project", resolveProjectName(args),
+            "routes", routes.stream().map(r -> {
+                // 查找对应的 Controller 信息
+                String controllerName = "";
+                String methodName = "";
+                try {
+                    var symbols = storage.findSymbolsByFile(r.filePath());
+                    for (var s : symbols) {
+                        if (s.kind() == Symbol.SymbolKind.CLASS) {
+                            controllerName = s.name();
+                        }
+                    }
+                } catch (Exception e) {
+                    // ignore
+                }
+                return Map.of(
+                    "http_method", r.httpMethod(),
+                    "path", r.path(),
+                    "base_path", r.basePath() != null ? r.basePath() : "",
+                    "method_path", r.methodPath() != null ? r.methodPath() : "",
+                    "controller", controllerName,
+                    "file", r.filePath(),
+                    "line", r.startLine()
+                );
+            }).toList(),
+            "total", routes.size()
+        );
+    }
+
+    private Map<String, Object> callFindRoute(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String httpMethod = args.get("http_method").getAsString();
+        String path = args.get("path").getAsString();
+
+        // 精确匹配
+        var routes = storage.searchApiRoutes(path, httpMethod, 10);
+        
+        // 如果没有精确匹配，尝试模糊匹配
+        if (routes.isEmpty()) {
+            routes = storage.searchApiRoutes(path.substring(1), httpMethod, 10);
+        }
+
+        if (routes.isEmpty()) {
+            return Map.of(
+                "project", resolveProjectName(args),
+                "http_method", httpMethod,
+                "path", path,
+                "matched", false
+            );
+        }
+
+        var route = routes.getFirst();
+        String controllerName = "";
+        try {
+            var symbols = storage.findSymbolsByFile(route.filePath());
+            for (var s : symbols) {
+                if (s.kind() == Symbol.SymbolKind.CLASS) {
+                    controllerName = s.name();
+                }
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "http_method", httpMethod,
+            "path", path,
+            "matched", true,
+            "matched_route", route.path(),
+            "controller", controllerName,
+            "file", route.filePath(),
+            "line", route.startLine()
+        );
+    }
+
+    private Map<String, Object> callGetTypeHierarchy(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String className = args.get("class_name").getAsString();
+        String direction = args.has("direction") ? args.get("direction").getAsString() : "both";
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 50;
+
+        List<Symbol> parents = List.of();
+        List<Symbol> children = List.of();
+
+        if ("up".equals(direction) || "both".equals(direction)) {
+            parents = storage.findTypeHierarchyUp(className, limit);
+        }
+        if ("down".equals(direction) || "both".equals(direction)) {
+            children = storage.findTypeHierarchyDown(className, limit);
+        }
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "class", className,
+            "parents", parents.stream().map(s -> Map.of(
+                "name", s.name(),
+                "qualified_name", s.qualifiedName() != null ? s.qualifiedName() : "",
+                "type", s.superClass() != null && s.superClass().equals(className) ? "extends" : "implements"
+            )).toList(),
+            "children", children.stream().map(s -> Map.of(
+                "name", s.name(),
+                "qualified_name", s.qualifiedName() != null ? s.qualifiedName() : "",
+                "type", className.equals(s.superClass()) ? "extends" : "implements"
+            )).toList(),
+            "depth", Math.max(parents.size(), children.size())
+        );
+    }
+
+    private Map<String, Object> callGetBeanDependencies(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String beanName = args.get("bean_name").getAsString();
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 20;
+
+        // 查找 Bean 的 symbolId
+        var symbols = storage.searchSymbolsByName(beanName, 1);
+        if (symbols.isEmpty()) {
+            return Map.of(
+                "project", resolveProjectName(args),
+                "bean", beanName,
+                "dependencies", List.of(),
+                "total", 0
+            );
+        }
+
+        long beanSymbolId = symbols.getFirst().id();
+        var deps = storage.findBeanDependencies(beanSymbolId, limit);
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "bean", beanName,
+            "dependencies", deps.stream().map(d -> {
+                String dependsOnName = d.dependsOnType();
+                // 尝试获取被依赖方的详细信息
+                if (d.dependsOnSymbolId() != null) {
+                    try {
+                        var depSymbols = storage.searchSymbolsByName(dependsOnName, 1);
+                        if (!depSymbols.isEmpty()) {
+                            dependsOnName = depSymbols.getFirst().qualifiedName();
+                        }
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+                return Map.of(
+                    "type", dependsOnName,
+                    "injection_type", d.injectionType(),
+                    "field_name", d.fieldName() != null ? d.fieldName() : "",
+                    "file", d.filePath(),
+                    "line", d.startLine()
+                );
+            }).toList(),
+            "total", deps.size()
+        );
+    }
+
+    private Map<String, Object> callGetBeanDependents(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String beanName = args.get("bean_name").getAsString();
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 20;
+
+        // 查找 Bean 的 symbolId
+        var symbols = storage.searchSymbolsByName(beanName, 1);
+        if (symbols.isEmpty()) {
+            return Map.of(
+                "project", resolveProjectName(args),
+                "bean", beanName,
+                "dependents", List.of(),
+                "total", 0
+            );
+        }
+
+        long beanSymbolId = symbols.getFirst().id();
+        var dependents = storage.findBeanDependents(beanSymbolId, limit);
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "bean", beanName,
+            "dependents", dependents.stream().map(d -> {
+                String beanFullName = beanName;
+                // 尝试获取依赖方的详细信息
+                try {
+                    var beanSymbols = storage.findSymbolsByFile(d.filePath());
+                    for (var s : beanSymbols) {
+                        if (s.kind() == Symbol.SymbolKind.CLASS) {
+                            beanFullName = s.name();
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    // ignore
+                }
+                return Map.of(
+                    "name", beanFullName,
+                    "injection_type", d.injectionType(),
+                    "file", d.filePath(),
+                    "line", d.startLine()
+                );
+            }).toList(),
+            "total", dependents.size()
+        );
+    }
+
+    private Map<String, Object> callFindRelatedTests(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String className = args.get("class_name").getAsString();
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 10;
+
+        var mappings = storage.findTestMappingsBySource(className, limit);
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "source_class", className,
+            "related_tests", mappings.stream().map(m -> Map.of(
+                "name", m.testClassName(),
+                "file", m.filePath(),
+                "mapping_type", m.mappingType()
+            )).toList(),
+            "total", mappings.size()
         );
     }
 
