@@ -322,6 +322,110 @@ public class Indexer {
 
         // --- 注解：先删旧的，再插入新的 ---
         storage.deleteAnnotationsByFile(relativePath);
+        // 注解 re-insert：通过 annotationRefs 解析 symbolId
+        if (!parsed.annotations().isEmpty() && !parsed.annotationRefs().isEmpty()) {
+            // 构建 qualifiedName → symbolId 映射
+            Map<String, Long> symbolIdMap = new LinkedHashMap<>();
+            for (Symbol s : storage.findSymbolsByFile(relativePath)) {
+                symbolIdMap.put(s.qualifiedName() + "|" + s.kind(), s.id());
+            }
+            List<Annotation> annotationsToInsert = new ArrayList<>();
+            for (var ref : parsed.annotationRefs()) {
+                if (ref.annotationIndex() < parsed.annotations().size()) {
+                    Annotation ann = parsed.annotations().get(ref.annotationIndex());
+                    Long symbolId = symbolIdMap.get(ref.ownerQualifiedName() + "|" + ref.ownerKind());
+                    if (symbolId != null) {
+                        annotationsToInsert.add(new Annotation(0, symbolId, ann.name(), ann.attributes()));
+                    }
+                }
+            }
+            if (!annotationsToInsert.isEmpty()) {
+                storage.insertAnnotations(annotationsToInsert);
+            }
+        }
+
+        // --- API 路由 ---
+        storage.deleteApiRoutesByFile(relativePath);
+        if (!parsed.apiRoutes().isEmpty()) {
+            // 构建方法 qualifiedName → symbolId 映射
+            Map<String, Long> methodSymbolMap = new LinkedHashMap<>();
+            for (Symbol s : storage.findSymbolsByFile(relativePath)) {
+                methodSymbolMap.put(s.qualifiedName(), s.id());
+            }
+            List<ApiRoute> routesToInsert = new ArrayList<>();
+            for (ApiRoute route : parsed.apiRoutes()) {
+                // 尝试找到对应的 Controller 方法 symbolId
+                long symbolId = -1;
+                for (Symbol s : storage.findSymbolsByFile(relativePath)) {
+                    if (s.kind() == Symbol.SymbolKind.CLASS && route.httpMethod() != null) {
+                        // 找到 Controller 类，路由关联到类
+                        symbolId = s.id();
+                        break;
+                    }
+                }
+                routesToInsert.add(new ApiRoute(0, symbolId, route.httpMethod(), route.path(),
+                    route.basePath(), route.methodPath(), relativePath, route.startLine()));
+            }
+            storage.insertApiRoutes(routesToInsert);
+        }
+
+        // --- Bean 依赖 ---
+        storage.deleteBeanDependenciesByFile(relativePath);
+        if (!parsed.beanDependencies().isEmpty()) {
+            // 构建 qualifiedName → symbolId 映射
+            Map<String, Long> beanSymbolMap = new LinkedHashMap<>();
+            for (Symbol s : storage.findSymbolsByFile(relativePath)) {
+                beanSymbolMap.put(s.qualifiedName(), s.id());
+            }
+            List<BeanDependency> depsToInsert = new ArrayList<>();
+            for (BeanDependency dep : parsed.beanDependencies()) {
+                // 查找依赖方 Bean 的 symbolId（通过类名匹配）
+                long beanSymbolId = -1;
+                for (Symbol s : storage.findSymbolsByFile(relativePath)) {
+                    if (s.kind() == Symbol.SymbolKind.CLASS) {
+                        beanSymbolId = s.id();
+                        break;
+                    }
+                }
+                // 查找被依赖方的 symbolId
+                Long dependsOnSymbolId = null;
+                for (Symbol s : storage.findSymbolsByFile(relativePath)) {
+                    if (s.name().equals(dep.dependsOnType()) || s.qualifiedName().equals(dep.dependsOnType())) {
+                        dependsOnSymbolId = s.id();
+                        break;
+                    }
+                }
+                depsToInsert.add(new BeanDependency(0, beanSymbolId, dependsOnSymbolId,
+                    dep.dependsOnType(), dep.injectionType(), dep.fieldName(),
+                    relativePath, dep.startLine()));
+            }
+            storage.insertBeanDependencies(depsToInsert);
+        }
+
+        // --- 测试映射 ---
+        storage.deleteTestMappingsByFile(relativePath);
+        if (!parsed.testMappings().isEmpty()) {
+            List<TestMapping> mappingsToInsert = new ArrayList<>();
+            for (TestMapping mapping : parsed.testMappings()) {
+                // 查找测试类和源类的 symbolId
+                Long testSymbolId = null;
+                Long sourceSymbolId = null;
+                for (Symbol s : storage.findSymbolsByFile(relativePath)) {
+                    if (s.name().equals(mapping.testClassName())) {
+                        testSymbolId = s.id();
+                    }
+                    if (s.name().equals(mapping.sourceClassName())) {
+                        sourceSymbolId = s.id();
+                    }
+                }
+                mappingsToInsert.add(new TestMapping(0,
+                    testSymbolId != null ? testSymbolId : 0,
+                    sourceSymbolId,
+                    mapping.testClassName(), mapping.sourceClassName(),
+                    mapping.mappingType(), relativePath));
+            }
+            storage.insertTestMappings(mappingsToInsert);
+        }
 
         // --- 代码块 diff ---
         String packageName = "";

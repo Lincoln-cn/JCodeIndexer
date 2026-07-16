@@ -18,6 +18,9 @@ AI coding assistants exploring unfamiliar JVM projects today:
 | Locate all dependencies | Open pom.xml + transitive (~3k tokens) | `find_dependencies("spring-boot-starter")` (~300 tokens) |
 | Find all `@RestController` classes | Search through entire codebase (~8k tokens) | `find_by_annotation("RestController")` (~200 tokens) |
 | Understand interface implementations | Read multiple files (~5k tokens) | `find_implementations("UserService")` (~300 tokens) |
+| Find which controller handles `/api/users/{id}` | Search through all controllers (~5k tokens) | `find_route("GET", "/api/users/123")` (~200 tokens) |
+| Understand Bean injection relationships | Read multiple `@Autowired` fields (~3k tokens) | `get_bean_dependencies("OrderService")` (~300 tokens) |
+| Find related test classes | Search test directories (~2k tokens) | `find_related_tests("UserService")` (~200 tokens) |
 
 ---
 
@@ -48,6 +51,15 @@ Supports 30+ annotations across major frameworks:
 | Cache | `@EnableCaching`, `@Cacheable`, `@CacheEvict`, `@CachePut` |
 | Async | `@EnableAsync`, `@Async` |
 | Scheduling | `@EnableScheduling`, `@Scheduled` |
+
+### Spring Ecosystem Support (v1.6.0+)
+
+| Feature | Description |
+|---------|-------------|
+| API Route Mapping | Automatically extract `@RequestMapping`/`@GetMapping` etc., build URL → Controller method mapping |
+| Type Hierarchy | Query complete class inheritance chains (parent/child relationships) |
+| Bean Dependencies | Extract `@Autowired`/`@Inject` injection relationships |
+| Test Coverage Mapping | Auto-associate test classes with source classes (e.g., `UserServiceTest` → `UserService`) |
 
 ---
 
@@ -123,7 +135,7 @@ No flags → start MCP server over stdio.
 
 ---
 
-## MCP Tools (15 tools)
+## MCP Tools (22 tools)
 
 When running as an MCP server, Java Code Indexer exposes these tools:
 
@@ -144,6 +156,12 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 | `find_usages` | Find all usages of a field/variable |
 | `find_annotations` | Find all annotations on a symbol |
 | `find_by_annotation` | Find symbols with a specific annotation |
+| `find_api_routes` | Find API route mappings (URL → Controller method) |
+| `find_route` | Find Controller method by HTTP method + URL path |
+| `get_type_hierarchy` | Get complete class inheritance hierarchy |
+| `get_bean_dependencies` | Find Bean's dependencies (what it depends on) |
+| `get_bean_dependents` | Find Beans that depend on this Bean |
+| `find_related_tests` | Find test classes related to source code |
 
 ---
 
@@ -258,7 +276,7 @@ Add to your MCP configuration:
 
 ### Database Schema
 
-Eight core tables:
+Eleven core tables:
 
 - **`symbols`** — classes, methods, fields with location and signatures
 - **`references`** — symbol usage locations across the codebase
@@ -268,6 +286,9 @@ Eight core tables:
 - **`file_meta`** — SHA-1 hashes for incremental indexing
 - **`config_entries`** — YAML/Properties/.env key-value pairs
 - **`dependencies`** — Maven/Gradle dependency declarations
+- **`api_routes`** — Spring Boot API route mappings (URL → Controller)
+- **`bean_dependencies`** — Spring Bean injection relationships
+- **`test_mappings`** — Test class to source class associations
 
 Plus FTS5 full-text search tables (`symbols_fts`, `chunks_fts`) with auto-sync triggers.
 
@@ -347,7 +368,7 @@ git push origin v1.5.1
 ## Testing
 
 ```bash
-# Run all tests (246+ tests)
+# Run all tests (384+ tests)
 mvn test
 
 # Run specific test class

@@ -126,7 +126,8 @@ public class ScalaParserAdapter {
             errors.add(relativePath + ": " + e.getMessage());
         }
 
-        return new ParseResult(symbols, references, calls, annotations, errors);
+        return new ParseResult(symbols, references, calls, annotations, errors,
+            List.of(), List.of(), List.of(), List.of());
     }
 
     /**
