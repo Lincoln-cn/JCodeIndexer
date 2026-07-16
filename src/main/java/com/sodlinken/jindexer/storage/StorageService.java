@@ -426,6 +426,70 @@ public class StorageService implements AutoCloseable {
         }
     }
 
+    /**
+     * 类型层次查询：向上查找父类链和实现的接口
+     */
+    public List<Symbol> findTypeHierarchyUp(String className, int limit) throws SQLException {
+        List<Symbol> result = new ArrayList<>();
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        java.util.Queue<String> queue = new java.util.LinkedList<>();
+        queue.add(className);
+
+        while (!queue.isEmpty() && result.size() < limit) {
+            String current = queue.poll();
+            if (!visited.add(current)) continue;
+
+            // 精确匹配优先，然后模糊匹配
+            String sql = """
+                SELECT SYMBOL_COLUMNS_PLACEHOLDER
+                FROM symbols
+                WHERE kind = 'CLASS' AND (qualified_name = ? OR name = ?)
+                LIMIT 1
+                """.replace("SYMBOL_COLUMNS_PLACEHOLDER", SYMBOL_COLUMNS);
+            try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+                ps.setString(1, current);
+                ps.setString(2, current);
+                List<Symbol> symbols = mapSymbols(ps);
+                if (symbols.isEmpty()) continue;
+
+                Symbol sym = symbols.getFirst();
+                result.add(sym);
+
+                // 添加父类到队列
+                if (sym.superClass() != null && !sym.superClass().isEmpty()) {
+                    queue.add(sym.superClass());
+                }
+                // 添加接口到队列
+                if (sym.interfaces() != null) {
+                    for (String iface : sym.interfaces()) {
+                        queue.add(iface.trim());
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 类型层次查询：向下查找所有子类
+     */
+    public List<Symbol> findTypeHierarchyDown(String className, int limit) throws SQLException {
+        String sql = """
+            SELECT SYMBOL_COLUMNS_PLACEHOLDER
+            FROM symbols
+            WHERE kind = 'CLASS' AND (super_class = ? OR interfaces LIKE ?)
+            ORDER BY qualified_name
+            LIMIT ?
+            """.replace("SYMBOL_COLUMNS_PLACEHOLDER", SYMBOL_COLUMNS);
+        String pattern = "%" + className + "%";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, className);
+            ps.setString(2, pattern);
+            ps.setInt(3, limit);
+            return mapSymbols(ps);
+        }
+    }
+
     // ==================== References ====================
 
     public long insertReference(Reference ref) throws SQLException {
@@ -1054,8 +1118,8 @@ public class StorageService implements AutoCloseable {
         String sql = """
             INSERT INTO symbols (file_path, start_line, end_line, kind, name, qualified_name,
                 signature, return_type, parent_class, modifiers, javadoc, super_class, interfaces,
-                is_data_class, is_object, is_sealed, is_companion)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                is_data_class, is_object, is_sealed, is_companion, is_trait, is_case_class)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             for (Symbol s : symbols) {
@@ -1076,6 +1140,8 @@ public class StorageService implements AutoCloseable {
                 ps.setInt(15, s.isObject() ? 1 : 0);
                 ps.setInt(16, s.isSealed() ? 1 : 0);
                 ps.setInt(17, s.isCompanion() ? 1 : 0);
+                ps.setInt(18, s.isTrait() ? 1 : 0);
+                ps.setInt(19, s.isCaseClass() ? 1 : 0);
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -1086,7 +1152,8 @@ public class StorageService implements AutoCloseable {
                     symbols.set(i, new Symbol(rs.getLong(1), old.filePath(), old.startLine(), old.endLine(),
                         old.kind(), old.name(), old.qualifiedName(), old.signature(), old.returnType(),
                         old.parentClass(), old.modifiers(), old.javadoc(), old.superClass(), old.interfaces(),
-                        old.isDataClass(), old.isObject(), old.isSealed(), old.isCompanion()));
+                        old.isDataClass(), old.isObject(), old.isSealed(), old.isCompanion(),
+                        old.isTrait(), old.isCaseClass()));
                     i++;
                 }
             }
@@ -1541,6 +1608,233 @@ public class StorageService implements AutoCloseable {
             List<Chunk> chunks = mapChunks(ps);
             return chunks.isEmpty() ? Optional.empty() : Optional.of(chunks.get(0));
         }
+    }
+
+    // ==================== API Routes ====================
+
+    public void insertApiRoutes(List<ApiRoute> routes) throws SQLException {
+        if (routes.isEmpty()) return;
+        String sql = """
+            INSERT INTO api_routes (symbol_id, http_method, path, base_path, method_path, file_path, start_line)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            for (ApiRoute r : routes) {
+                ps.setLong(1, r.symbolId());
+                ps.setString(2, r.httpMethod());
+                ps.setString(3, r.path());
+                ps.setString(4, r.basePath());
+                ps.setString(5, r.methodPath());
+                ps.setString(6, r.filePath());
+                ps.setInt(7, r.startLine());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    public void deleteApiRoutesByFile(String filePath) throws SQLException {
+        try (PreparedStatement ps = db.getConnection().prepareStatement(
+                "DELETE FROM api_routes WHERE file_path = ?")) {
+            ps.setString(1, filePath);
+            ps.executeUpdate();
+        }
+    }
+
+    public List<ApiRoute> searchApiRoutes(String query, String httpMethod, int limit) throws SQLException {
+        StringBuilder sql = new StringBuilder("""
+            SELECT ar.id, ar.symbol_id, ar.http_method, ar.path, ar.base_path, ar.method_path,
+                   ar.file_path, ar.start_line
+            FROM api_routes ar
+            WHERE (ar.path LIKE ? OR ar.base_path LIKE ?)
+            """);
+        if (httpMethod != null && !httpMethod.isEmpty()) {
+            sql.append(" AND ar.http_method = ?");
+        }
+        sql.append(" ORDER BY ar.path LIMIT ?");
+
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql.toString())) {
+            String pattern = "%" + query + "%";
+            int idx = 1;
+            ps.setString(idx++, pattern);
+            ps.setString(idx++, pattern);
+            if (httpMethod != null && !httpMethod.isEmpty()) {
+                ps.setString(idx++, httpMethod.toUpperCase());
+            }
+            ps.setInt(idx, limit);
+
+            List<ApiRoute> list = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new ApiRoute(
+                        rs.getLong("id"),
+                        rs.getLong("symbol_id"),
+                        rs.getString("http_method"),
+                        rs.getString("path"),
+                        rs.getString("base_path"),
+                        rs.getString("method_path"),
+                        rs.getString("file_path"),
+                        rs.getInt("start_line")
+                    ));
+                }
+            }
+            return list;
+        }
+    }
+
+    // ==================== Bean Dependencies ====================
+
+    public void insertBeanDependencies(List<BeanDependency> deps) throws SQLException {
+        if (deps.isEmpty()) return;
+        String sql = """
+            INSERT INTO bean_dependencies (bean_symbol_id, depends_on_symbol_id, depends_on_type,
+                injection_type, field_name, file_path, start_line)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            for (BeanDependency d : deps) {
+                ps.setLong(1, d.beanSymbolId());
+                if (d.dependsOnSymbolId() != null) {
+                    ps.setLong(2, d.dependsOnSymbolId());
+                } else {
+                    ps.setNull(2, Types.BIGINT);
+                }
+                ps.setString(3, d.dependsOnType());
+                ps.setString(4, d.injectionType());
+                ps.setString(5, d.fieldName());
+                ps.setString(6, d.filePath());
+                ps.setInt(7, d.startLine());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    public void deleteBeanDependenciesByFile(String filePath) throws SQLException {
+        try (PreparedStatement ps = db.getConnection().prepareStatement(
+                "DELETE FROM bean_dependencies WHERE file_path = ?")) {
+            ps.setString(1, filePath);
+            ps.executeUpdate();
+        }
+    }
+
+    public List<BeanDependency> findBeanDependencies(long beanSymbolId, int limit) throws SQLException {
+        String sql = """
+            SELECT id, bean_symbol_id, depends_on_symbol_id, depends_on_type,
+                   injection_type, field_name, file_path, start_line
+            FROM bean_dependencies
+            WHERE bean_symbol_id = ?
+            LIMIT ?
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setLong(1, beanSymbolId);
+            ps.setInt(2, limit);
+            return mapBeanDependencies(ps);
+        }
+    }
+
+    public List<BeanDependency> findBeanDependents(long dependsOnSymbolId, int limit) throws SQLException {
+        String sql = """
+            SELECT id, bean_symbol_id, depends_on_symbol_id, depends_on_type,
+                   injection_type, field_name, file_path, start_line
+            FROM bean_dependencies
+            WHERE depends_on_symbol_id = ?
+            LIMIT ?
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setLong(1, dependsOnSymbolId);
+            ps.setInt(2, limit);
+            return mapBeanDependencies(ps);
+        }
+    }
+
+    private List<BeanDependency> mapBeanDependencies(PreparedStatement ps) throws SQLException {
+        List<BeanDependency> list = new ArrayList<>();
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                long dependsOnId = rs.getLong("depends_on_symbol_id");
+                list.add(new BeanDependency(
+                    rs.getLong("id"),
+                    rs.getLong("bean_symbol_id"),
+                    rs.wasNull() ? null : dependsOnId,
+                    rs.getString("depends_on_type"),
+                    rs.getString("injection_type"),
+                    rs.getString("field_name"),
+                    rs.getString("file_path"),
+                    rs.getInt("start_line")
+                ));
+            }
+        }
+        return list;
+    }
+
+    // ==================== Test Mappings ====================
+
+    public void insertTestMappings(List<TestMapping> mappings) throws SQLException {
+        if (mappings.isEmpty()) return;
+        String sql = """
+            INSERT INTO test_mappings (test_symbol_id, source_symbol_id, test_class_name,
+                source_class_name, mapping_type, file_path)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            for (TestMapping m : mappings) {
+                ps.setLong(1, m.testSymbolId());
+                if (m.sourceSymbolId() != null) {
+                    ps.setLong(2, m.sourceSymbolId());
+                } else {
+                    ps.setNull(2, Types.BIGINT);
+                }
+                ps.setString(3, m.testClassName());
+                ps.setString(4, m.sourceClassName());
+                ps.setString(5, m.mappingType());
+                ps.setString(6, m.filePath());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    public void deleteTestMappingsByFile(String filePath) throws SQLException {
+        try (PreparedStatement ps = db.getConnection().prepareStatement(
+                "DELETE FROM test_mappings WHERE file_path = ?")) {
+            ps.setString(1, filePath);
+            ps.executeUpdate();
+        }
+    }
+
+    public List<TestMapping> findTestMappingsBySource(String sourceClassName, int limit) throws SQLException {
+        String sql = """
+            SELECT id, test_symbol_id, source_symbol_id, test_class_name,
+                   source_class_name, mapping_type, file_path
+            FROM test_mappings
+            WHERE source_class_name = ?
+            LIMIT ?
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, sourceClassName);
+            ps.setInt(2, limit);
+            return mapTestMappings(ps);
+        }
+    }
+
+    private List<TestMapping> mapTestMappings(PreparedStatement ps) throws SQLException {
+        List<TestMapping> list = new ArrayList<>();
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                long sourceId = rs.getLong("source_symbol_id");
+                list.add(new TestMapping(
+                    rs.getLong("id"),
+                    rs.getLong("test_symbol_id"),
+                    rs.wasNull() ? null : sourceId,
+                    rs.getString("test_class_name"),
+                    rs.getString("source_class_name"),
+                    rs.getString("mapping_type"),
+                    rs.getString("file_path")
+                ));
+            }
+        }
+        return list;
     }
 
     @Override

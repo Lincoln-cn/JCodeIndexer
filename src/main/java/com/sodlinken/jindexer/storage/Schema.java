@@ -254,7 +254,20 @@ public final class Schema {
             CREATE_INDEX_DEPENDENCIES_ARTIFACT,
             CREATE_INDEX_DEPENDENCIES_GROUP,
             CREATE_INDEX_DEPENDENCIES_FILE,
-            CREATE_INDEX_DEPENDENCIES_TYPE
+            CREATE_INDEX_DEPENDENCIES_TYPE,
+            // v1.6.0: API 路由、Bean 依赖、测试映射
+            CREATE_API_ROUTES,
+            CREATE_BEAN_DEPENDENCIES,
+            CREATE_TEST_MAPPINGS,
+            CREATE_INDEX_API_ROUTES_PATH,
+            CREATE_INDEX_API_ROUTES_METHOD,
+            CREATE_INDEX_API_ROUTES_SYMBOL,
+            CREATE_INDEX_BEAN_DEP_BEAN,
+            CREATE_INDEX_BEAN_DEP_DEPENDS,
+            CREATE_INDEX_BEAN_DEP_TYPE,
+            CREATE_INDEX_TEST_MAP_SOURCE,
+            CREATE_INDEX_TEST_MAP_TEST,
+            CREATE_INDEX_TEST_MAP_TYPE
         };
     }
 
@@ -316,6 +329,93 @@ public final class Schema {
         return new String[] {
             "ALTER TABLE symbols ADD COLUMN is_trait INTEGER DEFAULT 0",
             "ALTER TABLE symbols ADD COLUMN is_case_class INTEGER DEFAULT 0"
+        };
+    }
+
+    // v1.6.0: API 路由表
+    public static final String CREATE_API_ROUTES = """
+        CREATE TABLE IF NOT EXISTS api_routes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol_id INTEGER NOT NULL,
+            http_method TEXT NOT NULL,
+            path TEXT NOT NULL,
+            base_path TEXT,
+            method_path TEXT,
+            file_path TEXT NOT NULL,
+            start_line INTEGER NOT NULL,
+            FOREIGN KEY (symbol_id) REFERENCES symbols(id) ON DELETE CASCADE
+        )
+        """;
+
+    public static final String CREATE_INDEX_API_ROUTES_PATH =
+        "CREATE INDEX IF NOT EXISTS idx_api_routes_path ON api_routes(path)";
+    public static final String CREATE_INDEX_API_ROUTES_METHOD =
+        "CREATE INDEX IF NOT EXISTS idx_api_routes_method ON api_routes(http_method)";
+    public static final String CREATE_INDEX_API_ROUTES_SYMBOL =
+        "CREATE INDEX IF NOT EXISTS idx_api_routes_symbol ON api_routes(symbol_id)";
+
+    // v1.6.0: Bean 依赖表
+    public static final String CREATE_BEAN_DEPENDENCIES = """
+        CREATE TABLE IF NOT EXISTS bean_dependencies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bean_symbol_id INTEGER NOT NULL,
+            depends_on_symbol_id INTEGER,
+            depends_on_type TEXT NOT NULL,
+            injection_type TEXT NOT NULL,
+            field_name TEXT,
+            file_path TEXT NOT NULL,
+            start_line INTEGER NOT NULL,
+            FOREIGN KEY (bean_symbol_id) REFERENCES symbols(id) ON DELETE CASCADE,
+            FOREIGN KEY (depends_on_symbol_id) REFERENCES symbols(id) ON DELETE SET NULL
+        )
+        """;
+
+    public static final String CREATE_INDEX_BEAN_DEP_BEAN =
+        "CREATE INDEX IF NOT EXISTS idx_bean_dep_bean ON bean_dependencies(bean_symbol_id)";
+    public static final String CREATE_INDEX_BEAN_DEP_DEPENDS =
+        "CREATE INDEX IF NOT EXISTS idx_bean_dep_depends ON bean_dependencies(depends_on_symbol_id)";
+    public static final String CREATE_INDEX_BEAN_DEP_TYPE =
+        "CREATE INDEX IF NOT EXISTS idx_bean_dep_type ON bean_dependencies(depends_on_type)";
+
+    // v1.6.0: 测试映射表
+    public static final String CREATE_TEST_MAPPINGS = """
+        CREATE TABLE IF NOT EXISTS test_mappings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            test_symbol_id INTEGER NOT NULL,
+            source_symbol_id INTEGER,
+            test_class_name TEXT NOT NULL,
+            source_class_name TEXT,
+            mapping_type TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            FOREIGN KEY (test_symbol_id) REFERENCES symbols(id) ON DELETE CASCADE,
+            FOREIGN KEY (source_symbol_id) REFERENCES symbols(id) ON DELETE SET NULL
+        )
+        """;
+
+    public static final String CREATE_INDEX_TEST_MAP_SOURCE =
+        "CREATE INDEX IF NOT EXISTS idx_test_map_source ON test_mappings(source_symbol_id)";
+    public static final String CREATE_INDEX_TEST_MAP_TEST =
+        "CREATE INDEX IF NOT EXISTS idx_test_map_test ON test_mappings(test_symbol_id)";
+    public static final String CREATE_INDEX_TEST_MAP_TYPE =
+        "CREATE INDEX IF NOT EXISTS idx_test_map_type ON test_mappings(mapping_type)";
+
+    /**
+     * 获取迁移语句（v1.6.0: 添加 API 路由、Bean 依赖、测试映射表）
+     */
+    public static String[] migrationV1_6_0() {
+        return new String[] {
+            "CREATE TABLE IF NOT EXISTS api_routes (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol_id INTEGER NOT NULL, http_method TEXT NOT NULL, path TEXT NOT NULL, base_path TEXT, method_path TEXT, file_path TEXT NOT NULL, start_line INTEGER NOT NULL, FOREIGN KEY (symbol_id) REFERENCES symbols(id) ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS idx_api_routes_path ON api_routes(path)",
+            "CREATE INDEX IF NOT EXISTS idx_api_routes_method ON api_routes(http_method)",
+            "CREATE INDEX IF NOT EXISTS idx_api_routes_symbol ON api_routes(symbol_id)",
+            "CREATE TABLE IF NOT EXISTS bean_dependencies (id INTEGER PRIMARY KEY AUTOINCREMENT, bean_symbol_id INTEGER NOT NULL, depends_on_symbol_id INTEGER, depends_on_type TEXT NOT NULL, injection_type TEXT NOT NULL, field_name TEXT, file_path TEXT NOT NULL, start_line INTEGER NOT NULL, FOREIGN KEY (bean_symbol_id) REFERENCES symbols(id) ON DELETE CASCADE, FOREIGN KEY (depends_on_symbol_id) REFERENCES symbols(id) ON DELETE SET NULL)",
+            "CREATE INDEX IF NOT EXISTS idx_bean_dep_bean ON bean_dependencies(bean_symbol_id)",
+            "CREATE INDEX IF NOT EXISTS idx_bean_dep_depends ON bean_dependencies(depends_on_symbol_id)",
+            "CREATE INDEX IF NOT EXISTS idx_bean_dep_type ON bean_dependencies(depends_on_type)",
+            "CREATE TABLE IF NOT EXISTS test_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, test_symbol_id INTEGER NOT NULL, source_symbol_id INTEGER, test_class_name TEXT NOT NULL, source_class_name TEXT, mapping_type TEXT NOT NULL, file_path TEXT NOT NULL, FOREIGN KEY (test_symbol_id) REFERENCES symbols(id) ON DELETE CASCADE, FOREIGN KEY (source_symbol_id) REFERENCES symbols(id) ON DELETE SET NULL)",
+            "CREATE INDEX IF NOT EXISTS idx_test_map_source ON test_mappings(source_symbol_id)",
+            "CREATE INDEX IF NOT EXISTS idx_test_map_test ON test_mappings(test_symbol_id)",
+            "CREATE INDEX IF NOT EXISTS idx_test_map_type ON test_mappings(mapping_type)"
         };
     }
 }

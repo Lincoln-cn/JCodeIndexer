@@ -16,6 +16,48 @@ AI 编程助手探索一个不熟悉的 Java 项目时：
 | 查找 `saveOrder()` 的所有调用者 | 逐个文件阅读（~8k tokens） | `get_call_graph("saveOrder", "callers")`（~500 tokens） |
 | 查找 YAML/properties 中的配置值 | `find` + `cat` 多个配置文件（~5k tokens） | `search_config("spring.datasource.url")`（~200 tokens） |
 | 定位项目所有依赖 | 打开 pom.xml + 传递依赖（~3k tokens） | `find_dependencies("spring-boot-starter")`（~300 tokens） |
+| 找到处理 `/api/users/{id}` 的 Controller | 搜索所有 Controller 文件（~5k tokens） | `find_route("GET", "/api/users/123")`（~200 tokens） |
+| 理解 Bean 注入关系 | 阅读多个 `@Autowired` 字段（~3k tokens） | `get_bean_dependencies("OrderService")`（~300 tokens） |
+| 查找相关测试类 | 搜索测试目录（~2k tokens） | `find_related_tests("UserService")`（~200 tokens） |
+
+---
+
+## 功能特性
+
+### 多语言支持
+
+| 语言 | 状态 | 解析器 |
+|------|------|--------|
+| Java | ✅ 完全支持 | JavaParser AST |
+| Kotlin | ✅ 完全支持 | KotlinParserAdapter (regex) |
+| Scala | ✅ 完全支持 | ScalaParserAdapter (regex) |
+
+### 注解识别
+
+支持 30+ 主流框架注解：
+
+| 框架 | 注解 |
+|------|------|
+| Spring Boot | `@RestController`, `@Service`, `@Repository`, `@Component` |
+| Spring MVC | `@RequestMapping`, `@GetMapping`, `@PostMapping`, `@DeleteMapping` |
+| JPA | `@Entity`, `@Table`, `@Column`, `@Id`, `@GeneratedValue` |
+| Lombok | `@Data`, `@Builder`, `@Getter`, `@Setter`, `@NoArgsConstructor` |
+| Validation | `@NotNull`, `@Size`, `@Min`, `@Max`, `@Email` |
+| MyBatis | `@Mapper`, `@Select`, `@Insert`, `@Update`, `@Delete` |
+| Swagger | `@Api`, `@ApiOperation`, `@ApiParam` |
+| Security | `@EnableWebSecurity`, `@PreAuthorize`, `@Secured` |
+| Cache | `@EnableCaching`, `@Cacheable`, `@CacheEvict`, `@CachePut` |
+| Async | `@EnableAsync`, `@Async` |
+| Scheduling | `@EnableScheduling`, `@Scheduled` |
+
+### Spring 生态支持（v1.6.0+）
+
+| 功能 | 说明 |
+|------|------|
+| API 路由映射 | 自动提取 `@RequestMapping`/`@GetMapping` 等，构建 URL → Controller 方法映射 |
+| 类型层次结构 | 查询完整的类继承链（父类/子类关系） |
+| Bean 依赖图 | 提取 `@Autowired`/`@Inject` 注入关系 |
+| 测试覆盖映射 | 自动关联测试类与源类（如 `UserServiceTest` → `UserService`） |
 
 ---
 
@@ -88,7 +130,7 @@ Options:
 
 ---
 
-## MCP 工具
+## MCP 工具（22 个工具）
 
 以 MCP 服务模式运行时，Java Code Indexer 提供以下工具：
 
@@ -103,6 +145,18 @@ Options:
 | `find_dependencies` | 搜索项目依赖（Maven / Gradle） |
 | `health` | 服务器健康检查，返回状态和统计信息 |
 | `list_projects` | 列出已索引项目（仅多项目模式） |
+| `search_all_projects` | 跨所有项目搜索（多项目模式） |
+| `find_implementations` | 查找接口的所有实现类 |
+| `find_overrides` | 查找方法的所有重写 |
+| `find_usages` | 查找字段的所有使用位置 |
+| `find_annotations` | 查找符号的所有注解 |
+| `find_by_annotation` | 查找带特定注解的符号 |
+| `find_api_routes` | 查找 API 路由映射（URL → Controller 方法） |
+| `find_route` | 根据 HTTP 方法 + URL 路径查找 Controller 方法 |
+| `get_type_hierarchy` | 获取完整的类继承层次结构 |
+| `get_bean_dependencies` | 查找 Bean 的依赖（它依赖哪些 Bean） |
+| `get_bean_dependents` | 查找依赖该 Bean 的其他 Bean |
+| `find_related_tests` | 查找与源代码相关的测试类 |
 
 ---
 
@@ -181,15 +235,19 @@ threads: 4
 
 ### 数据库 Schema
 
-七张核心表：
+十一张核心表：
 
 - **`symbols`** — 类、方法、字段，含位置和签名
 - **`references`** — 符号在整个代码库中的使用位置
 - **`calls`** — 方法调用关系（调用者 → 被调用者）
+- **`annotations`** — 符号注解及属性
 - **`chunks`** — 类/方法粒度的代码切片
 - **`file_meta`** — 用于增量索引的 SHA-1 哈希
 - **`config_entries`** — YAML/Properties/.env 配置条目
 - **`dependencies`** — Maven/Gradle 依赖声明
+- **`api_routes`** — Spring Boot API 路由映射（URL → Controller）
+- **`bean_dependencies`** — Spring Bean 注入关系
+- **`test_mappings`** — 测试类与源类的关联映射
 
 另外还有 FTS5 全文搜索表（`symbols_fts`、`chunks_fts`），通过触发器自动同步。
 
