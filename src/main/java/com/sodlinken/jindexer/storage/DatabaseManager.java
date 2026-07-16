@@ -178,6 +178,18 @@ public class DatabaseManager implements AutoCloseable {
                     }
                 }
             }
+            // v1.7.0: 添加索引元数据、代码度量表
+            for (String sql : Schema.migrationV1_7_0()) {
+                try {
+                    stmt.execute(sql);
+                    log.debug("迁移执行成功: {}", sql);
+                } catch (SQLException e) {
+                    // 表/索引已存在，忽略
+                    if (!e.getMessage().contains("already exists")) {
+                        log.warn("迁移执行失败: {}", sql, e);
+                    }
+                }
+            }
         } catch (SQLException e) {
             log.warn("迁移过程出错", e);
         }

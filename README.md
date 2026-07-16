@@ -135,7 +135,7 @@ No flags → start MCP server over stdio.
 
 ---
 
-## MCP Tools (22 tools)
+## MCP Tools (26 tools)
 
 When running as an MCP server, Java Code Indexer exposes these tools:
 
@@ -162,6 +162,10 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 | `get_bean_dependencies` | Find Bean's dependencies (what it depends on) |
 | `get_bean_dependents` | Find Beans that depend on this Bean |
 | `find_related_tests` | Find test classes related to source code |
+| `reindex` | Manually trigger incremental re-indexing |
+| `index_status` | View index status and watcher state |
+| `search_symbols` | Enhanced symbol search with kind/annotation filters |
+| `get_code_metrics` | Get code metrics (lines, methods, complexity) |
 
 ---
 
@@ -170,23 +174,34 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 Create `.jindexer/config.yaml` in your project root (optional):
 
 ```yaml
-# Project root (CLI --project-root overrides this)
-project_root: /path/to/project
-
 # Data directory
 data_dir: .jindexer
 
-# Indexing threads
-indexing_threads: 4
+# Indexing settings
+indexing:
+  threads: 4                    # Indexing thread count
+  extract_javadoc: false        # Extract Javadoc comments
+  follow_symlinks: false        # Follow symbolic links
+  max_file_size_kb: 512         # Max file size (KB)
 
-# Max file size (KB)
-max_file_size_kb: 512
+# Storage
+storage:
+  db_name: index.db             # Database file name
 
-# Exclude directories
-exclude_dirs:
-  - "**/target/**"
-  - "**/build/**"
-  - "**/node_modules/**"
+# Logging
+log:
+  level: INFO                   # Log level (DEBUG/INFO/WARN/ERROR)
+  verbose: false                # Verbose output
+
+# File watching (auto-reindex on file changes)
+watch:
+  enabled: true                 # Enable background file watcher
+  interval: 5                   # Check interval (seconds)
+  exclude:                      # Directories to exclude
+    - "**/target/**"
+    - "**/build/**"
+    - "**/node_modules/**"
+    - "**/.git/**"
 
 # Multi-project mode
 projects:

@@ -2,6 +2,8 @@ package com.sodlinken.jindexer.mcp;
 
 import com.google.gson.*;
 import com.sodlinken.jindexer.config.Config;
+import com.sodlinken.jindexer.indexer.Indexer;
+import com.sodlinken.jindexer.indexer.ProgressListener;
 import com.sodlinken.jindexer.model.*;
 import com.sodlinken.jindexer.search.SearchProvider;
 import com.sodlinken.jindexer.storage.StorageService;
@@ -384,6 +386,32 @@ public class McpServer {
         if (multiProject) relatedTestsParams.put("project", projectParam);
         toolsArray.add(createTool("find_related_tests", "查找与源代码相关的测试类", relatedTestsParams));
 
+        // 23. reindex（手动触发增量重新索引）
+        Map<String, Object> reindexParams = new LinkedHashMap<>();
+        if (multiProject) reindexParams.put("project", projectParam);
+        toolsArray.add(createTool("reindex", "手动触发增量重新索引（通常由后台自动完成）", reindexParams));
+
+        // 24. index_status（查看索引状态）
+        Map<String, Object> indexStatusParams = new LinkedHashMap<>();
+        if (multiProject) indexStatusParams.put("project", projectParam);
+        toolsArray.add(createTool("index_status", "查看索引状态：最后更新时间、文件数、后台监听状态", indexStatusParams));
+
+        // 25. search_symbols（增强符号搜索）
+        Map<String, Object> searchSymbolsParams = new LinkedHashMap<>();
+        searchSymbolsParams.put("query", Map.of("type", "string", "description", "搜索关键词"));
+        searchSymbolsParams.put("kind", Map.of("type", "string", "description", "符号类型过滤: CLASS/METHOD/FIELD"));
+        searchSymbolsParams.put("annotation", Map.of("type", "string", "description", "注解过滤: RestController/Service/..."));
+        searchSymbolsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) searchSymbolsParams.put("project", projectParam);
+        toolsArray.add(createTool("search_symbols", "增强的符号搜索：支持按类型、注解过滤", searchSymbolsParams));
+
+        // 26. get_code_metrics（获取代码度量）
+        Map<String, Object> codeMetricsParams = new LinkedHashMap<>();
+        codeMetricsParams.put("class_name", Map.of("type", "string", "description", "类名或限定名"));
+        codeMetricsParams.put("file_path", Map.of("type", "string", "description", "文件路径"));
+        if (multiProject) codeMetricsParams.put("project", projectParam);
+        toolsArray.add(createTool("get_code_metrics", "获取类/文件的代码度量（行数、方法数、复杂度）", codeMetricsParams));
+
         JsonObject result = new JsonObject();
         result.add("tools", toolsArray);
         sendResult(id, result);
@@ -416,6 +444,10 @@ public class McpServer {
                 case "get_bean_dependencies" -> callGetBeanDependencies(arguments);
                 case "get_bean_dependents" -> callGetBeanDependents(arguments);
                 case "find_related_tests" -> callFindRelatedTests(arguments);
+                case "reindex" -> callReindex(arguments);
+                case "index_status" -> callIndexStatus(arguments);
+                case "search_symbols" -> callSearchSymbols(arguments);
+                case "get_code_metrics" -> callGetCodeMetrics(arguments);
                 default -> Map.of("error", "Unknown tool: " + toolName);
             };
             sendToolResult(id, result);
@@ -990,6 +1022,143 @@ public class McpServer {
                 "mapping_type", m.mappingType()
             )).toList(),
             "total", mappings.size()
+        );
+    }
+
+    private Map<String, Object> callReindex(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        Indexer indexer = new Indexer(ctx.config(), storage, ctx.dbManager());
+
+        long startTime = System.currentTimeMillis();
+        var result = indexer.index(ProgressListener.NONE);
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "status", "success",
+            "files_processed", result.totalFiles(),
+            "symbols_count", result.symbolCount(),
+            "duration_ms", System.currentTimeMillis() - startTime
+        );
+    }
+
+    private Map<String, Object> callIndexStatus(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+
+        Map<String, Object> stats = storage.getDetailedStats();
+        String lastIndexed = storage.getIndexMetadata("last_indexed_at").orElse("unknown");
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "last_indexed_at", lastIndexed,
+            "symbols", stats.getOrDefault("symbols", 0),
+            "chunks", stats.getOrDefault("chunks", 0),
+            "files", stats.getOrDefault("files", 0),
+            "config_entries", stats.getOrDefault("config_entries", 0),
+            "dependencies", stats.getOrDefault("dependencies", 0)
+        );
+    }
+
+    private Map<String, Object> callSearchSymbols(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String query = args.get("query").getAsString();
+        String kind = args.has("kind") ? args.get("kind").getAsString() : null;
+        String annotation = args.has("annotation") ? args.get("annotation").getAsString() : null;
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 20;
+
+        var symbols = storage.searchSymbolsByName(query, limit * 2);
+
+        // 过滤
+        if (kind != null && !kind.isEmpty()) {
+            symbols = symbols.stream()
+                .filter(s -> s.kind().name().equalsIgnoreCase(kind))
+                .toList();
+        }
+
+        if (annotation != null && !annotation.isEmpty()) {
+            List<Symbol> filtered = new ArrayList<>();
+            for (var s : symbols) {
+                var anns = storage.findAnnotationsBySymbolName(s.name());
+                if (anns.stream().anyMatch(a -> a.name().equalsIgnoreCase(annotation))) {
+                    filtered.add(s);
+                }
+            }
+            symbols = filtered;
+        }
+
+        // 限制结果数量
+        if (symbols.size() > limit) {
+            symbols = symbols.subList(0, limit);
+        }
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "symbols", symbols.stream().map(s -> {
+                Map<String, Object> map = new LinkedHashMap<>();
+                map.put("name", s.name());
+                map.put("qualified_name", s.qualifiedName());
+                map.put("kind", s.kind().name());
+                map.put("file", s.filePath());
+                map.put("line", s.startLine());
+                // 获取注解
+                try {
+                    var anns = storage.findAnnotationsBySymbolName(s.name());
+                    map.put("annotations", anns.stream().map(a -> a.name()).toList());
+                } catch (Exception e) {
+                    map.put("annotations", List.of());
+                }
+                return map;
+            }).toList(),
+            "total", symbols.size()
+        );
+    }
+
+    private Map<String, Object> callGetCodeMetrics(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+
+        if (args.has("class_name")) {
+            String className = args.get("class_name").getAsString();
+            var symbols = storage.searchSymbolsByName(className, 1);
+            if (symbols.isEmpty()) {
+                return Map.of(
+                    "project", resolveProjectName(args),
+                    "class", className,
+                    "found", false
+                );
+            }
+
+            var sym = symbols.getFirst();
+            // 查找对应的代码块来计算度量
+            var chunks = storage.findChunksByFile(sym.filePath());
+            int methodCount = 0;
+            int fieldCount = 0;
+            int linesOfCode = 0;
+
+            for (var chunk : chunks) {
+                if (chunk.className() != null && chunk.className().equals(sym.name())) {
+                    if (chunk.type().name().equals("METHOD")) methodCount++;
+                    if (chunk.type().name().equals("FIELD")) fieldCount++;
+                    linesOfCode += chunk.endLine() - chunk.startLine() + 1;
+                }
+            }
+
+            return Map.of(
+                "project", resolveProjectName(args),
+                "class", className,
+                "found", true,
+                "file", sym.filePath(),
+                "lines_of_code", linesOfCode,
+                "method_count", methodCount,
+                "field_count", fieldCount
+            );
+        }
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "error", "请提供 class_name 或 file_path 参数"
         );
     }
 

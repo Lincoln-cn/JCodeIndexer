@@ -860,4 +860,45 @@ public class Indexer {
         }
         return context.trim();
     }
+
+    /**
+     * 增量索引指定的文件列表（用于 FileWatcher 后台更新）
+     */
+    public void incrementalReindex(List<Path> files) {
+        if (files.isEmpty()) return;
+
+        synchronized (lock) {
+            if (indexing) {
+                log.warn("索引正在进行中，跳过增量更新");
+                return;
+            }
+            indexing = true;
+        }
+
+        try {
+            Path projectRoot = config.getProjectRoot();
+            Map<String, String> sha1Cache = new HashMap<>();
+
+            for (Path file : files) {
+                try {
+                    String relativePath = projectRoot.relativize(file).toString().replace("\\", "/");
+                    sha1Cache.put(relativePath, Sha1Util.compute(file));
+                } catch (Exception e) {
+                    log.warn("计算 SHA-1 失败: {}", file, e);
+                }
+            }
+
+            for (Path file : files) {
+                try {
+                    indexFile(projectRoot, file, sha1Cache);
+                } catch (Exception e) {
+                    log.error("索引文件失败: {}", file, e);
+                }
+            }
+
+            log.info("增量索引完成: {} 个文件", files.size());
+        } finally {
+            indexing = false;
+        }
+    }
 }

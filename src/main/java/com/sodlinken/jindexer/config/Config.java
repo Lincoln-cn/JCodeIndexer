@@ -42,6 +42,13 @@ public class Config {
     private String logLevel = "INFO";
     private boolean verbose = false;
 
+    // === 文件监听 ===
+    private boolean watchEnabled = true;
+    private int watchIntervalSeconds = 5;
+    private String[] watchExclude = new String[]{
+        "**/target/**", "**/build/**", "**/.git/**", "**/node_modules/**"
+    };
+
     // === Getters / Setters ===
 
     public Path getProjectRoot() { return projectRoot; }
@@ -95,6 +102,15 @@ public class Config {
 
     public boolean isVerbose() { return verbose; }
     public void setVerbose(boolean verbose) { this.verbose = verbose; }
+
+    public boolean isWatchEnabled() { return watchEnabled; }
+    public void setWatchEnabled(boolean watchEnabled) { this.watchEnabled = watchEnabled; }
+
+    public int getWatchIntervalSeconds() { return watchIntervalSeconds; }
+    public void setWatchIntervalSeconds(int watchIntervalSeconds) { this.watchIntervalSeconds = watchIntervalSeconds; }
+
+    public String[] getWatchExclude() { return watchExclude; }
+    public void setWatchExclude(String[] watchExclude) { this.watchExclude = watchExclude; }
 
     /**
      * 获取数据库文件的完整路径
