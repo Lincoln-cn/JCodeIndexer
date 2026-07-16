@@ -414,30 +414,45 @@ jobs:
 
           #### Fat JAR
           ```bash
+          # 1. 索引项目（首次使用）
+          java -jar java-code-indexer-${VERSION}.jar --project-root /path/to/project --index
+
+          # 2. 启动 MCP 服务（供 Claude Code / Cursor 等 AI 助手使用）
           java -jar java-code-indexer-${VERSION}.jar --project-root /path/to/project
           ```
 
           #### Native Image
           ```bash
           # Linux/macOS
+          # 1. 索引项目
           ./jindexer --project-root /path/to/project --index
+          # 2. 启动 MCP 服务
           ./jindexer --project-root /path/to/project
 
           # Windows
+          # 1. 索引项目
           jindexer.exe --project-root /path/to/project --index
+          # 2. 启动 MCP 服务
+          jindexer.exe --project-root /path/to/project
           ```
 
           #### Docker
           ```bash
+          # 1. 索引项目
           docker pull sodlinken/jcodeindexer:${VERSION}
           docker run --rm -v /path/to/project:/project sodlinken/jcodeindexer:${VERSION} --project-root /project --index
+
+          # 2. 启动 MCP 服务
+          docker run --rm -i -v /path/to/project:/project sodlinken/jcodeindexer:${VERSION} --project-root /project
           ```
 
           #### Docker 离线镜像
           ```bash
           # 加载离线镜像
           docker load < docker-image-${VERSION}.tar.gz
-          docker run --rm -v /path/to/project:/project sodlinken/jcodeindexer:${VERSION} --project-root /project
+
+          # 索引项目
+          docker run --rm -v /path/to/project:/project sodlinken/jcodeindexer:${VERSION} --project-root /project --index
           ```
 
           ---
@@ -446,11 +461,24 @@ jobs:
 
           | 变量 | 说明 | 默认值 |
           |------|------|--------|
-          | `INDEXER_EMBEDDING_ENABLED` | 启用 Embedding API | `false` |
-          | `INDEXER_EMBEDDING_BASE_URL` | Embedding API 端点 | - |
-          | `INDEXER_EMBEDDING_MODEL` | Embedding 模型名称 | - |
           | `INDEXER_THREADS` | 索引线程数 | `4` |
-          | `INDEXER_LOG_LEVEL` | 日志级别 | `INFO` |
+          | `INDEXER_LOG_LEVEL` | 日志级别 (DEBUG/INFO/WARN/ERROR) | `INFO` |
+
+          ---
+
+          ### ⚙️ 配置文件
+
+          在项目根目录创建 `.jindexer/config.yaml`（可选）：
+
+          ```yaml
+          data_dir: .jindexer
+          indexing:
+            threads: 4
+            max_file_size_kb: 512
+          watch:
+            enabled: true
+            interval: 5
+          ```
 
           HEREDOC
 

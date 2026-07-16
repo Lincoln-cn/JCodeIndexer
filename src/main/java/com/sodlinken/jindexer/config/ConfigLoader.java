@@ -111,6 +111,22 @@ public class ConfigLoader {
             }
         }
 
+        // 文件监听配置
+        if (map.containsKey("watch")) {
+            Map<String, Object> watchMap = (Map<String, Object>) map.get("watch");
+            if (watchMap.containsKey("enabled")) {
+                config.setWatchEnabled(toBool(watchMap.get("enabled"), true));
+            }
+            if (watchMap.containsKey("interval")) {
+                config.setWatchIntervalSeconds(toInt(watchMap.get("interval"), 5));
+            }
+            if (watchMap.containsKey("exclude")) {
+                @SuppressWarnings("unchecked")
+                List<String> excludeList = (List<String>) watchMap.get("exclude");
+                config.setWatchExclude(excludeList.toArray(new String[0]));
+            }
+        }
+
         // 多项目配置
         if (map.containsKey("projects")) {
             List<Config.Project> projects = new ArrayList<>();

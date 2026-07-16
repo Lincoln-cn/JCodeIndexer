@@ -1837,6 +1837,158 @@ public class StorageService implements AutoCloseable {
         return list;
     }
 
+    // ==================== Index Metadata ====================
+
+    public void upsertIndexMetadata(String key, String value) throws SQLException {
+        String sql = """
+            INSERT INTO index_metadata (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, key);
+            ps.setString(2, value);
+            ps.setLong(3, System.currentTimeMillis());
+            ps.executeUpdate();
+        }
+    }
+
+    public Optional<String> getIndexMetadata(String key) throws SQLException {
+        String sql = "SELECT value FROM index_metadata WHERE key = ?";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, key);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(rs.getString("value")) : Optional.empty();
+            }
+        }
+    }
+
+    // ==================== Code Metrics ====================
+
+    public void upsertCodeMetrics(CodeMetrics metrics) throws SQLException {
+        // 先检查是否存在
+        Optional<CodeMetrics> existing = findCodeMetricsByFile(metrics.filePath(), metrics.className());
+        
+        if (existing.isPresent()) {
+            String sql = """
+                UPDATE code_metrics SET
+                    symbol_id = ?,
+                    package_name = ?,
+                    lines_of_code = ?,
+                    method_count = ?,
+                    field_count = ?,
+                    complexity_estimate = ?,
+                    updated_at = ?
+                WHERE file_path = ? AND class_name = ?
+                """;
+            try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+                if (metrics.symbolId() != null) {
+                    ps.setLong(1, metrics.symbolId());
+                } else {
+                    ps.setNull(1, Types.BIGINT);
+                }
+                ps.setString(2, metrics.packageName());
+                ps.setInt(3, metrics.linesOfCode());
+                ps.setInt(4, metrics.methodCount());
+                ps.setInt(5, metrics.fieldCount());
+                ps.setInt(6, metrics.complexityEstimate());
+                ps.setLong(7, System.currentTimeMillis());
+                ps.setString(8, metrics.filePath());
+                ps.setString(9, metrics.className());
+                ps.executeUpdate();
+            }
+        } else {
+            String sql = """
+                INSERT INTO code_metrics (symbol_id, file_path, class_name, package_name,
+                    lines_of_code, method_count, field_count, complexity_estimate, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+            try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+                if (metrics.symbolId() != null) {
+                    ps.setLong(1, metrics.symbolId());
+                } else {
+                    ps.setNull(1, Types.BIGINT);
+                }
+                ps.setString(2, metrics.filePath());
+                ps.setString(3, metrics.className());
+                ps.setString(4, metrics.packageName());
+                ps.setInt(5, metrics.linesOfCode());
+                ps.setInt(6, metrics.methodCount());
+                ps.setInt(7, metrics.fieldCount());
+                ps.setInt(8, metrics.complexityEstimate());
+                ps.setLong(9, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+        }
+    }
+
+    public Optional<CodeMetrics> findCodeMetricsByFile(String filePath, String className) throws SQLException {
+        String sql = """
+            SELECT id, symbol_id, file_path, class_name, package_name,
+                   lines_of_code, method_count, field_count, complexity_estimate, updated_at
+            FROM code_metrics
+            WHERE file_path = ? AND class_name = ?
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, filePath);
+            ps.setString(2, className);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    long symbolId = rs.getLong("symbol_id");
+                    return Optional.of(new CodeMetrics(
+                        rs.getLong("id"),
+                        rs.wasNull() ? null : symbolId,
+                        rs.getString("file_path"),
+                        rs.getString("class_name"),
+                        rs.getString("package_name"),
+                        rs.getInt("lines_of_code"),
+                        rs.getInt("method_count"),
+                        rs.getInt("field_count"),
+                        rs.getInt("complexity_estimate"),
+                        rs.getLong("updated_at")
+                    ));
+                }
+                return Optional.empty();
+            }
+        }
+    }
+
+    public List<CodeMetrics> findCodeMetricsByPackageName(String packageName, int limit) throws SQLException {
+        String sql = """
+            SELECT id, symbol_id, file_path, class_name, package_name,
+                   lines_of_code, method_count, field_count, complexity_estimate, updated_at
+            FROM code_metrics
+            WHERE package_name = ?
+            ORDER BY lines_of_code DESC
+            LIMIT ?
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, packageName);
+            ps.setInt(2, limit);
+            List<CodeMetrics> list = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    long symbolId = rs.getLong("symbol_id");
+                    list.add(new CodeMetrics(
+                        rs.getLong("id"),
+                        rs.wasNull() ? null : symbolId,
+                        rs.getString("file_path"),
+                        rs.getString("class_name"),
+                        rs.getString("package_name"),
+                        rs.getInt("lines_of_code"),
+                        rs.getInt("method_count"),
+                        rs.getInt("field_count"),
+                        rs.getInt("complexity_estimate"),
+                        rs.getLong("updated_at")
+                    ));
+                }
+            }
+            return list;
+        }
+    }
+
     @Override
     public void close() {
         // DatabaseManager 的 close 由外部管理

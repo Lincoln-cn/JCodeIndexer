@@ -267,7 +267,12 @@ public final class Schema {
             CREATE_INDEX_BEAN_DEP_TYPE,
             CREATE_INDEX_TEST_MAP_SOURCE,
             CREATE_INDEX_TEST_MAP_TEST,
-            CREATE_INDEX_TEST_MAP_TYPE
+            CREATE_INDEX_TEST_MAP_TYPE,
+            // v1.7.0: 索引元数据、代码度量
+            CREATE_INDEX_METADATA,
+            CREATE_CODE_METRICS,
+            CREATE_INDEX_CODE_METRICS_SYMBOL,
+            CREATE_INDEX_CODE_METRICS_FILE
         };
     }
 
@@ -416,6 +421,49 @@ public final class Schema {
             "CREATE INDEX IF NOT EXISTS idx_test_map_source ON test_mappings(source_symbol_id)",
             "CREATE INDEX IF NOT EXISTS idx_test_map_test ON test_mappings(test_symbol_id)",
             "CREATE INDEX IF NOT EXISTS idx_test_map_type ON test_mappings(mapping_type)"
+        };
+    }
+
+    // v1.7.0: 索引元数据表
+    public static final String CREATE_INDEX_METADATA = """
+        CREATE TABLE IF NOT EXISTS index_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+        """;
+
+    // v1.7.0: 代码度量表
+    public static final String CREATE_CODE_METRICS = """
+        CREATE TABLE IF NOT EXISTS code_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol_id INTEGER,
+            file_path TEXT NOT NULL,
+            class_name TEXT,
+            package_name TEXT,
+            lines_of_code INTEGER,
+            method_count INTEGER,
+            field_count INTEGER,
+            complexity_estimate INTEGER,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (symbol_id) REFERENCES symbols(id) ON DELETE CASCADE
+        )
+        """;
+
+    public static final String CREATE_INDEX_CODE_METRICS_SYMBOL =
+        "CREATE INDEX IF NOT EXISTS idx_code_metrics_symbol ON code_metrics(symbol_id)";
+    public static final String CREATE_INDEX_CODE_METRICS_FILE =
+        "CREATE INDEX IF NOT EXISTS idx_code_metrics_file ON code_metrics(file_path)";
+
+    /**
+     * 获取迁移语句（v1.7.0: 添加索引元数据、代码度量表）
+     */
+    public static String[] migrationV1_7_0() {
+        return new String[] {
+            "CREATE TABLE IF NOT EXISTS index_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS code_metrics (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol_id INTEGER, file_path TEXT NOT NULL, class_name TEXT, package_name TEXT, lines_of_code INTEGER, method_count INTEGER, field_count INTEGER, complexity_estimate INTEGER, updated_at INTEGER NOT NULL, FOREIGN KEY (symbol_id) REFERENCES symbols(id) ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS idx_code_metrics_symbol ON code_metrics(symbol_id)",
+            "CREATE INDEX IF NOT EXISTS idx_code_metrics_file ON code_metrics(file_path)"
         };
     }
 }
