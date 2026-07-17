@@ -12,21 +12,31 @@
 
 | 工具 | 说明 |
 |------|------|
-| `find_symbol` | 按限定名或名称查找符号（类/方法/字段） |
-| `find_references` | 查找某个符号的所有引用位置 |
+| `find_symbol` | 按名称查找符号（类/方法/字段），支持 `*` 通配符 |
+| `find_references` | 查找符号的所有引用位置 |
 | `get_call_graph` | 获取方法的调用图（调用者/被调用者） |
-| `search_code` | 结构化搜索：符号名 + 代码内容 |
-| `get_file_info` | 获取指定文件的符号/代码块/调用信息 |
-| `search_config` | 搜索配置文件中的 key-value |
-| `find_dependencies` | 查找项目依赖（Maven POM / Gradle） |
-| `list_projects` | 列出所有已索引的项目（多项目模式） |
+| `search_code` | 搜索符号名和代码内容（FTS5 全文搜索） |
+| `get_file_info` | 获取文件的符号/代码块/调用信息 |
+| `search_config` | 搜索配置文件（YAML / Properties / .env） |
+| `find_dependencies` | 搜索项目依赖（Maven / Gradle） |
+| `health` | 服务器健康检查和统计信息 |
+| `list_projects` | 列出已索引项目（多项目模式） |
 | `search_all_projects` | 跨所有项目搜索（多项目模式） |
-| `health` | 健康检查，返回系统状态 |
 | `find_implementations` | 查找接口的所有实现类 |
 | `find_overrides` | 查找方法的所有重写 |
 | `find_usages` | 查找字段的所有使用位置 |
 | `find_annotations` | 查找符号的所有注解 |
 | `find_by_annotation` | 查找带特定注解的符号 |
+| `find_api_routes` | 查找 API 路由映射（URL → Controller） |
+| `find_route` | 根据 HTTP 方法 + URL 路径查找 Controller 方法 |
+| `get_type_hierarchy` | 获取类的完整继承层次结构 |
+| `get_bean_dependencies` | 查找 Bean 的依赖 |
+| `get_bean_dependents` | 查找依赖该 Bean 的其他 Bean |
+| `find_related_tests` | 查找与源代码相关的测试类 |
+| `reindex` | 触发项目重新索引 |
+| `index_status` | 获取索引状态和统计信息 |
+| `search_symbols` | 高级符号搜索，支持类型/注解过滤 |
+| `get_code_metrics` | 获取代码度量（LOC、方法/字段数量） |
 
 ---
 
@@ -216,10 +226,10 @@
 
 ### find_dependencies
 
-查找项目依赖（Maven POM / Gradle）。使用 `*` 通配符可返回所有依赖。
+查找项目依赖（Maven POM / Gradle）。省略 `query` 或传 `*` 可返回所有依赖。
 
 **参数：**
-- `query` (string, 必填) — 搜索关键词（匹配 artifactId / groupId / version）
+- `query` (string, 可选) — 搜索关键词（匹配 artifactId / groupId / version），省略返回所有
 - `dep_type` (string, 可选) — 依赖类型过滤：`POM` | `GRADLE`
 - `limit` (integer, 可选) — 最大返回数，默认 20
 - `project` (string, 可选) — 目标项目名称
