@@ -1189,7 +1189,9 @@ public class McpServer {
         List<Symbol> children = List.of();
 
         if ("up".equals(direction) || "both".equals(direction)) {
-            parents = storage.findTypeHierarchyUp(className, limit);
+            parents = storage.findTypeHierarchyUp(className, limit).stream()
+                .filter(s -> !s.name().equals(className) && !s.qualifiedName().equals(className))
+                .toList();
         }
         if ("down".equals(direction) || "both".equals(direction)) {
             children = storage.findTypeHierarchyDown(className, limit);
