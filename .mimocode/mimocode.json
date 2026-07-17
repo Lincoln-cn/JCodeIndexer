@@ -3,7 +3,7 @@
   "mcp": {
     "java-code-indexer": {
       "type": "local",
-      "command": ["C:\\Users\\Administrator\\scoop\\apps\\temurin-jdk\\current\\bin\\java.exe", "-jar", "D:\\Project\\java-code-indexer\\target\\java-code-indexer-1.9.0.jar", "--project-root", "D:\\Project\\java-code-indexer"]
+      "command": ["C:\\Users\\Administrator\\scoop\\apps\\temurin-jdk\\current\\bin\\java.exe", "-jar", "D:\\Project\\java-code-indexer\\target\\java-code-indexer-2.0.0.jar", "--project-root", "D:\\Project\\java-code-indexer"]
     }
   }
 }

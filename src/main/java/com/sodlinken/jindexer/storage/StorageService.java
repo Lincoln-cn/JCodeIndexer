@@ -82,12 +82,14 @@ public class StorageService implements AutoCloseable {
                 qualified_name
             LIMIT ?
             """.replace("SYMBOL_COLUMNS_PLACEHOLDER", SYMBOL_COLUMNS);
-        String contains = "%" + query + "%";
-        String prefix = query + "%";
+        // 将 * 通配符转换为 SQL LIKE 的 % 模式
+        String sqlQuery = query.replace("*", "%");
+        String contains = "%" + sqlQuery + "%";
+        String prefix = sqlQuery + "%";
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
             ps.setString(1, contains);
             ps.setString(2, contains);
-            ps.setString(3, query);
+            ps.setString(3, sqlQuery);
             ps.setString(4, prefix);
             ps.setString(5, contains);
             ps.setString(6, contains);
