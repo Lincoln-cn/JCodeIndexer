@@ -1451,10 +1451,25 @@ public class McpServer {
         Indexer indexer = new Indexer(ctx.config(), storage, ctx.dbManager());
 
         long startTime = System.currentTimeMillis();
-        var result = indexer.index(ProgressListener.NONE);
+        String projectName = resolveProjectName(args);
+
+        var result = indexer.index(new ProgressListener() {
+            @Override
+            public void onPhaseStart(String phase, int total) {
+                sendProgressNotification(projectName, phase, 0, total);
+            }
+            @Override
+            public void onProgress(String phase, int current, int total) {
+                sendProgressNotification(projectName, phase, current, total);
+            }
+            @Override
+            public void onPhaseEnd(String phase) {}
+            @Override
+            public void onError(String message) {}
+        });
 
         return Map.of(
-            "project", resolveProjectName(args),
+            "project", projectName,
             "status", "success",
             "files_processed", result.totalFiles(),
             "symbols_count", result.symbolCount(),
@@ -1728,6 +1743,19 @@ public class McpServer {
         notification.addProperty("method", method);
         notification.add("params", gson.toJsonTree(params));
         send(notification);
+    }
+
+    private void sendProgressNotification(String projectName, String phase, int current, int total) {
+        try {
+            sendNotification("notifications/progress", Map.of(
+                "progressToken", "reindex-" + projectName,
+                "progress", current,
+                "total", total,
+                "phase", phase
+            ));
+        } catch (Exception e) {
+            log.debug("发送进度通知失败", e);
+        }
     }
 
     private synchronized void send(JsonObject json) {

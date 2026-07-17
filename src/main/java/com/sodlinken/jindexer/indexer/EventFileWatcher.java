@@ -29,6 +29,7 @@ public class EventFileWatcher {
     private final Map<WatchKey, Path> watchKeys = new ConcurrentHashMap<>();
     private final BlockingQueue<Path> pendingChanges = new LinkedBlockingQueue<>();
     private final Set<Path> pendingDeletes = ConcurrentHashMap.newKeySet();
+    private final Set<Path> pendingConfigChanges = ConcurrentHashMap.newKeySet();
 
     private Thread eventLoopThread;
     private ScheduledExecutorService debounceScheduler;
@@ -219,6 +220,19 @@ public class EventFileWatcher {
         if (isSourceFile(changed)) {
             pendingChanges.add(changed);
         }
+
+        // 检测配置文件变化，触发配置热更新
+        if (isConfigFile(changed)) {
+            pendingConfigChanges.add(changed);
+        }
+    }
+
+    /**
+     * 判断是否为配置文件
+     */
+    private boolean isConfigFile(Path file) {
+        String fileName = file.getFileName().toString().toLowerCase();
+        return fileName.equals("config.yaml") || fileName.equals("config.yml");
     }
 
     /**
@@ -228,6 +242,16 @@ public class EventFileWatcher {
         if (!running) return;
 
         try {
+            // 处理配置文件变化
+            if (!pendingConfigChanges.isEmpty()) {
+                Set<Path> configFiles = new HashSet<>(pendingConfigChanges);
+                pendingConfigChanges.clear();
+                log.info("检测到配置文件变化，重新加载配置");
+                // 配置变化时触发全量重新索引
+                fullSha1Check();
+                return;
+            }
+
             // 收集待处理的变更文件（去重）
             Set<Path> changedFiles = new HashSet<>();
             pendingChanges.drainTo(changedFiles);
