@@ -162,6 +162,10 @@ Options:
 | `search_symbols` | 高级符号搜索，支持类型/注解过滤 |
 | `get_code_metrics` | 获取类的代码度量（代码行数、方法/字段数量） |
 | `list_modules` | 列出自动发现的所有子模块（auto_discover 模式） |
+| `find_bean_sources` | 查找 Bean 的定义位置（@Bean 方法） |
+| `find_config_bindings` | 查找配置项绑定的类（@ConfigurationProperties） |
+| `complexity_report` | 获取代码复杂度报告（圈复杂度、认知复杂度） |
+| `detect_dead_code` | 检测潜在死代码（未被引用的 public 方法/类） |
 
 ---
 

@@ -167,6 +167,10 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 | `search_symbols` | Advanced symbol search with kind/annotation filters |
 | `get_code_metrics` | Get code metrics (LOC, method/field count) for a class |
 | `list_modules` | List auto-discovered sub-modules (auto_discover mode) |
+| `find_bean_sources` | Find Bean definition sources (@Bean methods) |
+| `find_config_bindings` | Find @ConfigurationProperties bindings |
+| `complexity_report` | Get cyclomatic/cognitive complexity report |
+| `detect_dead_code` | Detect potentially dead code |
 
 ---
 

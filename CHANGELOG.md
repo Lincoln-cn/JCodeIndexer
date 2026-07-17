@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-07-18
+
+### Added
+- **@Bean 追踪**: 从 @Configuration 类提取 @Bean 方法，追踪 Bean 来源
+  - 新增 MCP 工具: `find_bean_sources`
+  - 新增 `bean_sources` 数据库表
+- **@ConfigurationProperties 追踪**: 配置绑定关系分析
+  - 新增 MCP 工具: `find_config_bindings`
+  - 新增 `config_bindings` 数据库表
+- **Kotlin Spring 支持**: KotlinParserAdapter 提取 Spring 注解
+  - 支持 @RestController, @RequestMapping, @GetMapping 等路由注解
+  - 支持 @Autowired, @Inject 字段和构造函数注入
+- **Scala Spring 支持**: ScalaParserAdapter 提取 Spring 注解
+  - 支持路由注解和依赖注入注解
+- **代码复杂度分析**: 圈复杂度 + 认知复杂度计算
+  - 新增 `ComplexityAnalyzer` 工具类
+  - 新增 MCP 工具: `complexity_report`
+- **死代码检测**: 检测未被引用的 public 方法/类
+  - 新增 `DeadCodeDetector` 工具类
+  - 新增 MCP 工具: `detect_dead_code`
+- **测试**: 新增 430+ 测试
+
+### Changed
+- `ParseResult` 新增 `beanSources` 字段
+- `DatabaseManager` 执行 v1.8.0 迁移（bean_sources 表、config_bindings 表、复杂度字段）
+
 ## [1.8.0] - 2026-07-18
 
 ### Added
