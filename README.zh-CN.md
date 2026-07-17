@@ -166,6 +166,7 @@ Options:
 | `find_config_bindings` | 查找配置项绑定的类（@ConfigurationProperties） |
 | `complexity_report` | 获取代码复杂度报告（圈复杂度、认知复杂度） |
 | `detect_dead_code` | 检测潜在死代码（未被引用的 public 方法/类） |
+| `find_circular_deps` | 检测类间的循环依赖 |
 
 ---
 

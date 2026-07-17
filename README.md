@@ -171,6 +171,7 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 | `find_config_bindings` | Find @ConfigurationProperties bindings |
 | `complexity_report` | Get cyclomatic/cognitive complexity report |
 | `detect_dead_code` | Detect potentially dead code |
+| `find_circular_deps` | Detect circular dependencies between classes |
 
 ---
 

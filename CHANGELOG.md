@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-07-18
+
+### Added
+- **循环依赖检测**: 类间循环依赖分析
+  - 新增 `CircularDependencyDetector` 工具类
+  - 新增 MCP 工具: `find_circular_deps`
+- **MCP Resources**: 暴露索引数据为 MCP Resources
+  - `indexer://stats` - 索引统计信息
+  - `indexer://projects` - 项目列表
+- **索引进度通知**: reindex 时通过 MCP notifications 报告进度
+- **配置热更新**: 修改 config.yaml 后自动触发重新索引
+- **测试**: 新增 440+ 测试
+
+### Changed
+- `McpServer` 支持 `resources/list` 和 `resources/read` MCP 方法
+- `EventFileWatcher` 检测配置文件变化并触发全量索引
+
 ## [1.9.0] - 2026-07-18
 
 ### Added
