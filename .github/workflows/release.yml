@@ -151,8 +151,9 @@ jobs:
         run: |
           echo "=== Building Native Image ==="
 
-          # Find JAR file
+          # Find JAR file (resolve to absolute path before cd)
           JAR=$(find target -maxdepth 1 -name "*.jar" -not -name "original-*" | head -n 1)
+          JAR="$(pwd)/$JAR"
           echo "Found JAR: $JAR"
 
           # Create work JAR and fix multi-release JAR issue
