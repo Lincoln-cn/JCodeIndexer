@@ -71,23 +71,23 @@ Requires **Java 21+** (JRE or JDK). Docker and Native Image options bundle the r
 
 ```bash
 # Fat JAR (all platforms)
-curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-1.5.1.jar
+curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION.jar
 
 # Native Image (Linux)
-curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-1.5.1-linux-amd64.tar.gz
+curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION-linux-amd64.tar.gz
 
 # Native Image (macOS)
-curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-1.5.1-darwin-arm64.tar.gz
+curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION-darwin-arm64.tar.gz
 
 # Native Image (Windows)
-curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-1.5.1-windows-amd64.zip
+curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION-windows-amd64.zip
 ```
 
 **Option 2: Build from source** (requires Java 21+ and Maven 3.8+)
 
 ```bash
-git clone https://github.com/Lincoln-cn/JCodeIndexer.git
-cd JCodeIndexer
+git clone https://github.com/sodlinken/java-code-indexer.git
+cd java-code-indexer
 mvn package -q -DskipTests
 # output: target/java-code-indexer-*-shaded.jar
 ```
@@ -104,10 +104,10 @@ docker pull sodlinken/jcodeindexer:latest
 
 ```bash
 # 1. Index your JVM project (Java/Kotlin/Scala)
-java -jar java-code-indexer-1.5.1.jar --project-root /path/to/your/project --index
+java -jar java-code-indexer-VERSION.jar --project-root /path/to/your/project --index
 
 # 2. Start the MCP server (stdio, for Claude Code / Qwen Code / Cursor)
-java -jar java-code-indexer-1.5.1.jar --project-root /path/to/your/project
+java -jar java-code-indexer-VERSION.jar --project-root /path/to/your/project
 ```
 
 That's it. Your AI assistant can now query your codebase structure instead of reading files.
@@ -285,7 +285,7 @@ Add to your MCP configuration:
   "mcpServers": {
     "java-code-indexer": {
       "command": "java",
-      "args": ["-jar", "/path/to/java-code-indexer-1.5.1.jar", "--project-root", "/path/to/project"]
+      "args": ["-jar", "/path/to/java-code-indexer-VERSION.jar", "--project-root", "/path/to/project"]
     }
   }
 }
@@ -427,9 +427,9 @@ GitHub Actions automated release process:
 5. Create GitHub Release and upload artifacts
 
 ```bash
-# Create release tag
-git tag v1.5.1
-git push origin v1.5.1
+# Create release tag (replace VERSION with actual version)
+git tag vVERSION
+git push origin vVERSION
 ```
 
 ---

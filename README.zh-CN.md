@@ -370,6 +370,7 @@ src/main/java/com/sodlinken/jindexer/
 | `java-code-indexer-VERSION.jar` | Fat JAR，需 Java 21+ |
 | `java-code-indexer-VERSION-linux-amd64.tar.gz` | Linux amd64 Native Image |
 | `java-code-indexer-VERSION-darwin-arm64.tar.gz` | macOS arm64 Native Image |
+| `java-code-indexer-VERSION-windows-amd64.zip` | Windows amd64 Native Image |
 | `docker-image-VERSION.tar.gz` | Docker 离线镜像 |
 | `checksums-VERSION.sha256` | SHA-256 校验和 |
 
