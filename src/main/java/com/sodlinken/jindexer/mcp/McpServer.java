@@ -548,6 +548,14 @@ public class McpServer {
             "【代码度量】获取类或文件的复杂度报告：圈复杂度、认知复杂度。使用场景：评估代码复杂度，识别高风险方法。",
             complexityParams));
 
+        // 28. detect_dead_code（死代码检测）
+        Map<String, Object> deadCodeParams = new LinkedHashMap<>();
+        deadCodeParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 50));
+        if (multiProject) deadCodeParams.put("project", projectParam);
+        toolsArray.add(createTool("detect_dead_code",
+            "【死代码检测】检测潜在死代码（未被引用的 public 方法/类）。使用场景：代码维护，识别可删除的代码。",
+            deadCodeParams));
+
         // 22. find_related_tests（查找与源代码相关的测试类）
         Map<String, Object> relatedTestsParams = new LinkedHashMap<>();
         relatedTestsParams.put("class_name", Map.of("type", "string", "description", "源类名或限定名（如 UserService, OrderController）"));
@@ -626,6 +634,7 @@ public class McpServer {
                 case "find_bean_sources" -> callFindBeanSources(arguments);
                 case "find_config_bindings" -> callFindConfigBindings(arguments);
                 case "complexity_report" -> callComplexityReport(arguments);
+                case "detect_dead_code" -> callDetectDeadCode(arguments);
                 case "find_related_tests" -> callFindRelatedTests(arguments);
                 case "reindex" -> callReindex(arguments);
                 case "index_status" -> callIndexStatus(arguments);
@@ -1273,6 +1282,28 @@ public class McpServer {
             "class_name", className != null ? className : "all",
             "methods", methods,
             "total", methods.size()
+        );
+    }
+
+    private Map<String, Object> callDetectDeadCode(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 50;
+
+        var detector = new com.sodlinken.jindexer.analysis.DeadCodeDetector(storage);
+        var deadCode = detector.detect();
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "dead_code", deadCode.stream().limit(limit).map(d -> Map.of(
+                "name", d.name(),
+                "qualified_name", d.qualifiedName(),
+                "kind", d.kind(),
+                "file", d.filePath(),
+                "line", d.startLine(),
+                "reason", d.reason()
+            )).toList(),
+            "total", deadCode.size()
         );
     }
 
