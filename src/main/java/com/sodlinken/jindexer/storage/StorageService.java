@@ -1041,6 +1041,51 @@ public class StorageService implements AutoCloseable {
         return list;
     }
 
+    // ==================== ConfigBindings ====================
+
+    public void insertConfigBindings(List<ConfigBinding> bindings) throws SQLException {
+        String sql = "INSERT INTO config_bindings (symbol_id, config_key, field_name, binding_type, file_path, start_line) VALUES (?, ?, ?, ?, ?, ?)";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            for (ConfigBinding b : bindings) {
+                ps.setLong(1, b.symbolId());
+                ps.setString(2, b.configKey());
+                ps.setString(3, b.fieldName());
+                ps.setString(4, b.bindingType());
+                ps.setString(5, b.filePath());
+                ps.setInt(6, b.startLine());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    public void deleteConfigBindingsByFile(String filePath) throws SQLException {
+        String sql = "DELETE FROM config_bindings WHERE file_path = ?";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, filePath);
+            ps.executeUpdate();
+        }
+    }
+
+    public List<ConfigBinding> findConfigBindingsByPrefix(String prefix) throws SQLException {
+        String sql = "SELECT id, symbol_id, config_key, field_name, binding_type, file_path, start_line FROM config_bindings WHERE config_key LIKE ?";
+        List<ConfigBinding> list = new ArrayList<>();
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, prefix + "%");
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new ConfigBinding(
+                        rs.getLong("id"), rs.getLong("symbol_id"),
+                        rs.getString("config_key"), rs.getString("field_name"),
+                        rs.getString("binding_type"), rs.getString("file_path"),
+                        rs.getInt("start_line")
+                    ));
+                }
+            }
+        }
+        return list;
+    }
+
     // ==================== Annotations ====================
 
     public long insertAnnotation(Annotation annotation) throws SQLException {

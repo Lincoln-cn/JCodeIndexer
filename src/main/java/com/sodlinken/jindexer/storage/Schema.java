@@ -475,6 +475,8 @@ public final class Schema {
             "CREATE TABLE IF NOT EXISTS bean_sources (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol_id INTEGER, return_type TEXT NOT NULL, bean_name TEXT NOT NULL, source_type TEXT NOT NULL, file_path TEXT NOT NULL, start_line INTEGER, FOREIGN KEY (symbol_id) REFERENCES symbols(id) ON DELETE CASCADE)",
             "CREATE INDEX IF NOT EXISTS idx_bean_sources_name ON bean_sources(bean_name)",
             "CREATE INDEX IF NOT EXISTS idx_bean_sources_type ON bean_sources(return_type)",
+            "CREATE TABLE IF NOT EXISTS config_bindings (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol_id INTEGER, config_key TEXT NOT NULL, field_name TEXT NOT NULL, binding_type TEXT NOT NULL, file_path TEXT NOT NULL, start_line INTEGER, FOREIGN KEY (symbol_id) REFERENCES symbols(id) ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS idx_config_bindings_key ON config_bindings(config_key)",
             "ALTER TABLE code_metrics ADD COLUMN cyclomatic_complexity INTEGER DEFAULT 0",
             "ALTER TABLE code_metrics ADD COLUMN cognitive_complexity INTEGER DEFAULT 0"
         };

@@ -530,6 +530,15 @@ public class McpServer {
             "【Bean 来源追踪】查找 Bean 的定义位置（@Bean 方法 or @Component 类）。使用场景：追踪 Bean 从哪里创建。",
             beanSourcesParams));
 
+        // 21c. find_config_bindings（查找配置绑定）
+        Map<String, Object> configBindingsParams = new LinkedHashMap<>();
+        configBindingsParams.put("config_prefix", Map.of("type", "string", "description", "配置前缀（如 app.user）"));
+        configBindingsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) configBindingsParams.put("project", projectParam);
+        toolsArray.add(createTool("find_config_bindings",
+            "【配置绑定追踪】查找配置项绑定的类（@ConfigurationProperties）。使用场景：查看某个配置前缀绑定到哪些类。",
+            configBindingsParams));
+
         // 22. find_related_tests（查找与源代码相关的测试类）
         Map<String, Object> relatedTestsParams = new LinkedHashMap<>();
         relatedTestsParams.put("class_name", Map.of("type", "string", "description", "源类名或限定名（如 UserService, OrderController）"));
@@ -606,6 +615,7 @@ public class McpServer {
                 case "get_bean_dependencies" -> callGetBeanDependencies(arguments);
                 case "get_bean_dependents" -> callGetBeanDependents(arguments);
                 case "find_bean_sources" -> callFindBeanSources(arguments);
+                case "find_config_bindings" -> callFindConfigBindings(arguments);
                 case "find_related_tests" -> callFindRelatedTests(arguments);
                 case "reindex" -> callReindex(arguments);
                 case "index_status" -> callIndexStatus(arguments);
@@ -1200,6 +1210,28 @@ public class McpServer {
                 "line", s.startLine()
             )).toList(),
             "total", sources.size()
+        );
+    }
+
+    private Map<String, Object> callFindConfigBindings(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String prefix = args.get("config_prefix").getAsString();
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 20;
+
+        var bindings = storage.findConfigBindingsByPrefix(prefix);
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "config_prefix", prefix,
+            "bindings", bindings.stream().map(b -> Map.of(
+                "config_key", b.configKey(),
+                "field_name", b.fieldName(),
+                "binding_type", b.bindingType(),
+                "file", b.filePath(),
+                "line", b.startLine()
+            )).toList(),
+            "total", bindings.size()
         );
     }
 
