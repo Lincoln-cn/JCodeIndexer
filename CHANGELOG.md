@@ -5,30 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.7.0] - 2026-07-16
-
-### Added
-- **文件监听**: 后台自动检测文件变化并增量重新索引
-  - 基于 SHA-1 哈希检测文件变化
-  - 可配置检查间隔和排除目录
-  - 新增 MCP 工具: `reindex`, `index_status`
-- **增强搜索**: 支持按类型、注解过滤的符号搜索
-  - 新增 MCP 工具: `search_symbols`
-- **代码度量**: 获取类/文件的代码统计信息
-  - 行数、方法数、字段数
-  - 新增 MCP 工具: `get_code_metrics`
-- **配置增强**: 新增文件监听配置项
-  - `watch.enabled`: 是否启用后台监听
-  - `watch.interval`: 检查间隔（秒）
-  - `watch.exclude`: 排除的目录
-- **数据库**: 新增 2 个表 (index_metadata, code_metrics)
-- **测试**: 11 个新测试，总计 395 个测试全部通过
-- **文档**: 更新 README 配置示例，修正 release notes 安装说明
-
-### MCP Tools
-- 工具总数: 22 → 26
-- 新增工具: `reindex`, `index_status`, `search_symbols`, `get_code_metrics`
-
 ## [1.6.0] - 2026-07-16
 
 ### Added

@@ -124,8 +124,56 @@ public class DatabaseManager implements AutoCloseable {
                     stmt.execute(sql);
                     log.debug("迁移执行成功: {}", sql);
                 } catch (SQLException e) {
+                    // 字段已存在，忽略（SQLite 报 "duplicate column name"，MySQL 报 "Duplicate column"）
+                    if (!isColumnAlreadyExists(e)) {
+                        log.warn("迁移执行失败: {}", sql, e);
+                    }
+                }
+            }
+            // v1.1.1: 添加 Kotlin 特有字段
+            for (String sql : Schema.migrationV1_1_1()) {
+                try {
+                    stmt.execute(sql);
+                    log.debug("迁移执行成功: {}", sql);
+                } catch (SQLException e) {
                     // 字段已存在，忽略
-                    if (!e.getMessage().contains("already exists")) {
+                    if (!isColumnAlreadyExists(e)) {
+                        log.warn("迁移执行失败: {}", sql, e);
+                    }
+                }
+            }
+            // v1.2.1: 添加注解表
+            for (String sql : Schema.migrationV1_2_1()) {
+                try {
+                    stmt.execute(sql);
+                    log.debug("迁移执行成功: {}", sql);
+                } catch (SQLException e) {
+                    // 表/索引已存在，忽略
+                    if (!isTableOrIndexAlreadyExists(e)) {
+                        log.warn("迁移执行失败: {}", sql, e);
+                    }
+                }
+            }
+            // v1.3.1: 添加 Scala 特有字段
+            for (String sql : Schema.migrationV1_3_1()) {
+                try {
+                    stmt.execute(sql);
+                    log.debug("迁移执行成功: {}", sql);
+                } catch (SQLException e) {
+                    // 字段已存在，忽略
+                    if (!isColumnAlreadyExists(e)) {
+                        log.warn("迁移执行失败: {}", sql, e);
+                    }
+                }
+            }
+            // v1.6.0: 添加 API 路由、Bean 依赖、测试映射表
+            for (String sql : Schema.migrationV1_6_0()) {
+                try {
+                    stmt.execute(sql);
+                    log.debug("迁移执行成功: {}", sql);
+                } catch (SQLException e) {
+                    // 表/索引已存在，忽略
+                    if (!isTableOrIndexAlreadyExists(e)) {
                         log.warn("迁移执行失败: {}", sql, e);
                     }
                 }
@@ -193,6 +241,30 @@ public class DatabaseManager implements AutoCloseable {
         } catch (SQLException e) {
             log.warn("迁移过程出错", e);
         }
+    }
+
+    /**
+     * 判断异常是否表示列已存在
+     */
+    private static boolean isColumnAlreadyExists(SQLException e) {
+        String msg = e.getMessage();
+        return msg != null && (
+            msg.contains("duplicate column name") ||  // SQLite
+            msg.contains("Duplicate column") ||       // MySQL
+            msg.contains("already exists")            // 通用
+        );
+    }
+
+    /**
+     * 判断异常是否表示表或索引已存在
+     */
+    private static boolean isTableOrIndexAlreadyExists(SQLException e) {
+        String msg = e.getMessage();
+        return msg != null && (
+            msg.contains("already exists") ||         // 通用
+            msg.contains("duplicate column name") ||  // SQLite (列已存在)
+            msg.contains("Duplicate column")          // MySQL
+        );
     }
 
     /**

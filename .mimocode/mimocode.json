@@ -1,0 +1,9 @@
+{
+  "$schema": "https://mimo.xiaomi.com/mimocode/config.json",
+  "mcp": {
+    "java-code-indexer": {
+      "type": "local",
+      "command": ["/usr/lib/jvm/java-21-openjdk-amd64/bin/java", "-jar", "/home/ubuntu/jairouter/mcp/java-code-indexer/target/java-code-indexer-1.5.0.jar", "--project-root", "/home/ubuntu/jairouter/modelrouter"]
+    }
+  }
+}

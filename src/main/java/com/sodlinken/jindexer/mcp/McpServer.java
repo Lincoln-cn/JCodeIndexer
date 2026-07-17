@@ -244,10 +244,12 @@ public class McpServer {
 
         // 2. find_symbol
         Map<String, Object> findSymbolParams = new LinkedHashMap<>();
-        findSymbolParams.put("query", Map.of("type", "string", "description", "符号名称或限定名"));
+        findSymbolParams.put("query", Map.of("type", "string", "description", "符号名称或限定名，支持 * 通配符（如 UserService*, *Controller）"));
         findSymbolParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
         if (multiProject) findSymbolParams.put("project", projectParam);
-        toolsArray.add(createTool("find_symbol", "按限定名或名称查找符号（类/方法/字段）", findSymbolParams));
+        toolsArray.add(createTool("find_symbol",
+            "【快速定位代码】按名称查找类、方法、字段。比 grep 更高效，返回结构化结果（含文件路径、行号、签名）。使用场景：查找某个类/方法在哪里定义，快速定位代码位置。",
+            findSymbolParams));
 
         // 3. find_references
         Map<String, Object> findRefParams = new LinkedHashMap<>();
@@ -256,48 +258,60 @@ public class McpServer {
         findRefParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 50));
         if (multiProject) findRefParams.put("project", projectParam);
         toolsArray.add(createTool("find_references",
-            "查找某个符号的所有引用位置。支持两种模式：按 symbol_id 精确查找，或按 symbol_name 模糊查找",
+            "【影响分析】查找某个类/方法/字段被哪些地方引用。使用场景：修改代码前评估影响范围，了解哪些地方依赖这个符号。",
             findRefParams));
 
         // 4. get_call_graph
         Map<String, Object> callGraphParams = new LinkedHashMap<>();
-        callGraphParams.put("method_name", Map.of("type", "string", "description", "方法限定名"));
-        callGraphParams.put("direction", Map.of("type", "string", "description", "callers | callees | both", "default", "both"));
+        callGraphParams.put("method_name", Map.of("type", "string", "description", "方法限定名（如 com.example.Service.save）"));
+        callGraphParams.put("direction", Map.of("type", "string", "description", "callers（谁调用了我）| callees（我调用了谁）| both（双向）", "default", "both"));
         if (multiProject) callGraphParams.put("project", projectParam);
-        toolsArray.add(createTool("get_call_graph", "获取方法的调用图（调用者/被调用者）", callGraphParams));
+        toolsArray.add(createTool("get_call_graph",
+            "【调用链分析】追踪方法的调用关系：谁调用了这个方法（callers），这个方法调用了谁（callees）。使用场景：理解代码执行流程，调试时追踪调用链路。",
+            callGraphParams));
 
         // 5. search_code
         Map<String, Object> searchCodeParams = new LinkedHashMap<>();
-        searchCodeParams.put("query", Map.of("type", "string", "description", "搜索关键词（使用 * 返回全部结果）"));
+        searchCodeParams.put("query", Map.of("type", "string", "description", "搜索关键词（支持 * 通配符，如 *Service, spring*）"));
         searchCodeParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
         if (multiProject) searchCodeParams.put("project", projectParam);
-        toolsArray.add(createTool("search_code", "结构化搜索：符号名 + 代码内容。使用 * 通配符可返回所有结果", searchCodeParams));
+        toolsArray.add(createTool("search_code",
+            "【全文搜索】同时搜索符号名和代码内容，基于 SQLite FTS5 全文索引。使用场景：查找包含特定关键词的代码，比 grep 更快且支持中文分词。",
+            searchCodeParams));
 
         // 6. get_file_info
         Map<String, Object> fileInfoParams = new LinkedHashMap<>();
-        fileInfoParams.put("file_path", Map.of("type", "string", "description", "文件相对路径"));
+        fileInfoParams.put("file_path", Map.of("type", "string", "description", "文件相对路径（如 src/main/java/com/example/Service.java）"));
         if (multiProject) fileInfoParams.put("project", projectParam);
-        toolsArray.add(createTool("get_file_info", "获取指定文件的符号/代码块/调用信息", fileInfoParams));
+        toolsArray.add(createTool("get_file_info",
+            "【文件概览】获取指定文件的所有符号、代码块和调用关系。使用场景：快速了解一个文件的结构，包含哪些类/方法/字段。",
+            fileInfoParams));
 
         // 7. search_config
         Map<String, Object> searchConfigParams = new LinkedHashMap<>();
-        searchConfigParams.put("query", Map.of("type", "string", "description", "搜索关键词（匹配 key/value/content）"));
+        searchConfigParams.put("query", Map.of("type", "string", "description", "搜索关键词（匹配配置文件的 key/value/content）"));
         searchConfigParams.put("config_type", Map.of("type", "string", "description", "配置类型过滤: YAML | PROPERTIES | ENV"));
         searchConfigParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
         if (multiProject) searchConfigParams.put("project", projectParam);
-        toolsArray.add(createTool("search_config", "搜索配置文件中的 key-value（YAML/Properties/ENV）", searchConfigParams));
+        toolsArray.add(createTool("search_config",
+            "【配置搜索】搜索 YAML/Properties/ENV 配置文件。使用场景：查找某个配置项在哪里定义，查看配置值是什么。",
+            searchConfigParams));
 
         // 9. find_dependencies
         Map<String, Object> findDepsParams = new LinkedHashMap<>();
-        findDepsParams.put("query", Map.of("type", "string", "description", "搜索关键词（匹配 artifactId/groupId/version）"));
+        findDepsParams.put("query", Map.of("type", "string", "description", "搜索关键词（匹配 artifactId/groupId/version，如 spring, mybatis）。省略或传 * 返回所有依赖"));
         findDepsParams.put("dep_type", Map.of("type", "string", "description", "依赖类型过滤: POM | GRADLE"));
         findDepsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
         if (multiProject) findDepsParams.put("project", projectParam);
-        toolsArray.add(createTool("find_dependencies", "查找项目依赖（Maven POM / Gradle）", findDepsParams));
+        toolsArray.add(createTool("find_dependencies",
+            "【依赖分析】查找项目的 Maven/Gradle 依赖。使用场景：确认某个库是否已引入，查看依赖版本，分析依赖关系。",
+            findDepsParams));
 
         // 10. health（健康检查）
         Map<String, Object> healthParams = new LinkedHashMap<>();
-        toolsArray.add(createTool("health", "检查服务器健康状态和索引统计", healthParams));
+        toolsArray.add(createTool("health",
+            "【状态检查】查看索引服务器状态和统计信息：已索引的文件数、符号数、代码行数等。使用场景：确认索引是否最新，了解项目规模。",
+            healthParams));
 
         // 11. search_all_projects（多项目搜索，仅多项目模式下可用）
         if (multiProject) {
@@ -309,25 +323,104 @@ public class McpServer {
 
         // 12. find_implementations（查找接口实现）
         Map<String, Object> findImplParams = new LinkedHashMap<>();
-        findImplParams.put("interface_name", Map.of("type", "string", "description", "接口名称或限定名"));
+        findImplParams.put("interface_name", Map.of("type", "string", "description", "接口名称或限定名（如 UserService, WebFilter）"));
         findImplParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
         if (multiProject) findImplParams.put("project", projectParam);
-        toolsArray.add(createTool("find_implementations", "查找接口的所有实现类（支持直接和间接实现）", findImplParams));
+        toolsArray.add(createTool("find_implementations",
+            "【接口实现分析】查找接口的所有实现类。使用场景：了解接口有哪些实现，分析依赖注入的可能实现，重构时评估影响。",
+            findImplParams));
 
         // 13. find_overrides（查找方法重写）
         Map<String, Object> findOverridesParams = new LinkedHashMap<>();
-        findOverridesParams.put("method_name", Map.of("type", "string", "description", "方法名"));
-        findOverridesParams.put("class_name", Map.of("type", "string", "description", "父类限定名"));
+        findOverridesParams.put("method_name", Map.of("type", "string", "description", "方法名（如 save, toString）"));
+        findOverridesParams.put("class_name", Map.of("type", "string", "description", "父类限定名（如 java.lang.Object, com.example.BaseService）"));
         findOverridesParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
         if (multiProject) findOverridesParams.put("project", projectParam);
-        toolsArray.add(createTool("find_overrides", "查找方法的所有重写实现（包括子类重写）", findOverridesParams));
+        toolsArray.add(createTool("find_overrides",
+            "【重写分析】查找方法在子类中的所有重写实现。使用场景：理解多态行为，查看某个方法被哪些子类重写。",
+            findOverridesParams));
 
         // 14. find_usages（查找字段使用）
         Map<String, Object> findUsagesParams = new LinkedHashMap<>();
-        findUsagesParams.put("field_name", Map.of("type", "string", "description", "字段限定名"));
+        findUsagesParams.put("field_name", Map.of("type", "string", "description", "字段限定名（如 userService, config.path）"));
         findUsagesParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 50));
         if (multiProject) findUsagesParams.put("project", projectParam);
-        toolsArray.add(createTool("find_usages", "查找字段/变量的所有使用位置", findUsagesParams));
+        toolsArray.add(createTool("find_usages",
+            "【使用分析】查找字段/变量的所有读写位置。使用场景：重构时了解字段被哪些地方读取或修改。",
+            findUsagesParams));
+
+        // 15. find_annotations（查找符号的所有注解）
+        Map<String, Object> findAnnotationsParams = new LinkedHashMap<>();
+        findAnnotationsParams.put("symbol_name", Map.of("type", "string", "description", "符号名称或限定名（如 UserService, save）"));
+        if (multiProject) findAnnotationsParams.put("project", projectParam);
+        toolsArray.add(createTool("find_annotations",
+            "【注解查询】查看某个类/方法/字段上有哪些注解。使用场景：了解代码的元数据配置，如 Spring 注解、Lombok 注解等。",
+            findAnnotationsParams));
+
+        // 16. find_by_annotation（查找带特定注解的符号）
+        Map<String, Object> findByAnnotationParams = new LinkedHashMap<>();
+        findByAnnotationParams.put("annotation_name", Map.of("type", "string", "description", "注解名（如 RestController, Service, Component）"));
+        findByAnnotationParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) findByAnnotationParams.put("project", projectParam);
+        toolsArray.add(createTool("find_by_annotation",
+            "【注解搜索】查找所有使用了特定注解的代码。使用场景：找出所有 Controller、Service、Repository 等。",
+            findByAnnotationParams));
+
+        // 17. find_api_routes（查找 API 路由映射）
+        Map<String, Object> findApiRoutesParams = new LinkedHashMap<>();
+        findApiRoutesParams.put("query", Map.of("type", "string", "description", "路径关键词（如 /api, /users, /health）"));
+        findApiRoutesParams.put("http_method", Map.of("type", "string", "description", "HTTP 方法过滤: GET/POST/PUT/DELETE/PATCH"));
+        findApiRoutesParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 50));
+        if (multiProject) findApiRoutesParams.put("project", projectParam);
+        toolsArray.add(createTool("find_api_routes",
+            "【API 路由分析】查找 Spring Boot 应用的所有 API 端点。使用场景：了解应用有哪些 API，查看路由映射关系。",
+            findApiRoutesParams));
+
+        // 18. find_route（根据 HTTP 方法和路径查找路由）
+        Map<String, Object> findRouteParams = new LinkedHashMap<>();
+        findRouteParams.put("http_method", Map.of("type", "string", "description", "HTTP 方法: GET/POST/PUT/DELETE/PATCH"));
+        findRouteParams.put("path", Map.of("type", "string", "description", "URL 路径（如 /api/users/123, /actuator/health）"));
+        if (multiProject) findRouteParams.put("project", projectParam);
+        toolsArray.add(createTool("find_route",
+            "【路由定位】根据 HTTP 方法和路径精确查找对应的 Controller 方法。使用场景：调试 API 请求，找到处理特定请求的代码。",
+            findRouteParams));
+
+        // 19. get_type_hierarchy（获取类的继承层次结构）
+        Map<String, Object> typeHierarchyParams = new LinkedHashMap<>();
+        typeHierarchyParams.put("class_name", Map.of("type", "string", "description", "类名或限定名（如 UserService, ArrayList）"));
+        typeHierarchyParams.put("direction", Map.of("type", "string", "description", "up（父类链）| down（子类树）| both（双向）", "default", "both"));
+        typeHierarchyParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 50));
+        if (multiProject) typeHierarchyParams.put("project", projectParam);
+        toolsArray.add(createTool("get_type_hierarchy",
+            "【继承分析】查看类的完整继承层次：父类链（extends）和子类树（implements）。使用场景：理解类的继承关系，分析多态设计。",
+            typeHierarchyParams));
+
+        // 20. get_bean_dependencies（查找 Bean 的依赖）
+        Map<String, Object> beanDepsParams = new LinkedHashMap<>();
+        beanDepsParams.put("bean_name", Map.of("type", "string", "description", "Bean 名称或限定名（如 UserService, OrderService）"));
+        beanDepsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) beanDepsParams.put("project", projectParam);
+        toolsArray.add(createTool("get_bean_dependencies",
+            "【依赖注入分析】查看某个 Spring Bean 注入了哪些其他 Bean。使用场景：理解 Bean 的依赖关系，排查循环依赖问题。",
+            beanDepsParams));
+
+        // 21. get_bean_dependents（查找依赖该 Bean 的其他 Bean）
+        Map<String, Object> beanDependentsParams = new LinkedHashMap<>();
+        beanDependentsParams.put("bean_name", Map.of("type", "string", "description", "Bean 名称或限定名（如 UserService, UserRepository）"));
+        beanDependentsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) beanDependentsParams.put("project", projectParam);
+        toolsArray.add(createTool("get_bean_dependents",
+            "【反向依赖分析】查看哪些 Bean 注入了指定的 Bean。使用场景：修改某个 Bean 前评估影响范围。",
+            beanDependentsParams));
+
+        // 22. find_related_tests（查找与源代码相关的测试类）
+        Map<String, Object> relatedTestsParams = new LinkedHashMap<>();
+        relatedTestsParams.put("class_name", Map.of("type", "string", "description", "源类名或限定名（如 UserService, OrderController）"));
+        relatedTestsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 10));
+        if (multiProject) relatedTestsParams.put("project", projectParam);
+        toolsArray.add(createTool("find_related_tests",
+            "【测试关联】查找与源代码相关的测试类。使用场景：修改代码后知道需要运行哪些测试，了解测试覆盖情况。",
+            relatedTestsParams));
 
         // 15. find_annotations（查找符号的所有注解）
         Map<String, Object> findAnnotationsParams = new LinkedHashMap<>();
@@ -657,7 +750,7 @@ public class McpServer {
     private Map<String, Object> callFindDependencies(JsonObject args) throws Exception {
         ProjectContext ctx = resolveProject(args);
         StorageService storage = ctx.storage();
-        String query = args.get("query").getAsString();
+        String query = args.has("query") ? args.get("query").getAsString() : "*";
         String depType = args.has("dep_type") ? args.get("dep_type").getAsString() : null;
         int limit = args.has("limit") ? args.get("limit").getAsInt() : 20;
 

@@ -155,17 +155,23 @@ jobs:
           JAR=$(find target -maxdepth 1 -name "*.jar" -not -name "original-*" | head -n 1)
           echo "Found JAR: $JAR"
 
-          # Create work JAR
+          # Create work JAR and fix multi-release JAR issue
+          # sqlite-jdbc puts SqliteJdbcFeature in META-INF/versions/9/ which GraalVM can't find
           WORK_JAR="$(pwd)/target/jindexer-build.jar"
-          cp "$JAR" "$WORK_JAR"
-
-          # Remove sqlite-jdbc native-image configuration that causes issues
-          echo "Removing problematic sqlite-jdbc config..."
           TMP_EXTRACT=$(mktemp -d)
+
+          echo "Fixing multi-release JAR for sqlite-jdbc..."
           cd "$TMP_EXTRACT"
-          jar xf "$WORK_JAR"
-          rm -rf META-INF/native-image/org.xerial/sqlite-jdbc 2>/dev/null || true
-          rm -rf META-INF/versions/9/org/sqlite/nativeimage 2>/dev/null || true
+          jar xf "$JAR"
+
+          # Copy SqliteJdbcFeature from META-INF/versions/9/ to root classpath
+          if [ -d "META-INF/versions/9/org/sqlite/nativeimage" ]; then
+            mkdir -p org/sqlite/nativeimage
+            cp META-INF/versions/9/org/sqlite/nativeimage/*.class org/sqlite/nativeimage/
+            echo "Copied SqliteJdbcFeature classes to root classpath"
+          fi
+
+          # Rebuild JAR with manifest
           jar cfm "$WORK_JAR" META-INF/MANIFEST.MF .
           cd "$GITHUB_WORKSPACE"
           rm -rf "$TMP_EXTRACT"

@@ -1,5 +1,11 @@
 [
   {
+    "name": "org.sqlite.nativeimage.SqliteJdbcFeature",
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true,
+    "allDeclaredConstructors": true
+  },
+  {
     "name": "com.sodlinken.jindexer.cli.CliMain",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
@@ -10,22 +16,22 @@
     "allDeclaredFields": true
   },
   {
-    "name": "com.sodlinken.jindexer.indexer.IndexerService",
+    "name": "com.sodlinken.jindexer.indexer.Indexer",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "com.sodlinken.jindexer.indexer.ProjectIndexer",
+    "name": "com.sodlinken.jindexer.storage.DatabaseManager",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "com.sodlinken.jindexer.db.DatabaseManager",
+    "name": "com.sodlinken.jindexer.storage.Schema",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "com.sodlinken.jindexer.db.SchemaInitializer",
+    "name": "com.sodlinken.jindexer.storage.StorageService",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
@@ -35,37 +41,7 @@
     "allDeclaredFields": true
   },
   {
-    "name": "com.sodlinken.jindexer.mcp.tools.FindSymbolTool",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "com.sodlinken.jindexer.mcp.tools.FindReferencesTool",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "com.sodlinken.jindexer.mcp.tools.SearchCodeTool",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "com.sodlinken.jindexer.mcp.tools.GetCallGraphTool",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "com.sodlinken.jindexer.mcp.tools.GetFileInfoTool",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "com.sodlinken.jindexer.mcp.tools.FindDependenciesTool",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "com.sodlinken.jindexer.mcp.tools.ListProjectsTool",
+    "name": "com.sodlinken.jindexer.mcp.ProjectContext",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
@@ -80,17 +56,62 @@
     "allDeclaredFields": true
   },
   {
-    "name": "com.sodlinken.jindexer.model.CallGraph",
+    "name": "com.sodlinken.jindexer.model.Call",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "com.sodlinken.jindexer.model.FileInfo",
+    "name": "com.sodlinken.jindexer.model.Chunk",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "com.sodlinken.jindexer.model.ProjectInfo",
+    "name": "com.sodlinken.jindexer.model.Annotation",
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.sodlinken.jindexer.model.ApiRoute",
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.sodlinken.jindexer.model.BeanDependency",
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.sodlinken.jindexer.model.TestMapping",
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.sodlinken.jindexer.model.ConfigEntry",
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.sodlinken.jindexer.model.Dependency",
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.sodlinken.jindexer.model.SearchResult",
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.sodlinken.jindexer.search.SearchProvider",
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.sodlinken.jindexer.config.Config",
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.sodlinken.jindexer.config.ConfigLoader",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
@@ -121,6 +142,11 @@
   },
   {
     "name": "com.google.gson.JsonNull",
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.google.gson.JsonParser",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
@@ -161,11 +187,6 @@
   },
   {
     "name": "com.squareup.okhttp3.RequestBody",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "com.squareup.okhttp3.RequestBody$Companion",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
@@ -230,16 +251,6 @@
     "allDeclaredFields": true
   },
   {
-    "name": "ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.core.encoder.LayoutWrappingEncoder",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
     "name": "ch.qos.logback.classic.encoder.PatternLayoutEncoder",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
@@ -270,112 +281,32 @@
     "allDeclaredFields": true
   },
   {
-    "name": "ch.qos.logback.classic.pattern.MDCConverter",
+    "name": "org.xerial.sqlite-jdbc.core.NativeDB",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "ch.qos.logback.classic.pattern.ClassicConverter",
+    "name": "org.xerial.sqlite-jdbc.core.DB",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "ch.qos.logback.classic.pattern.ExtendedThrowableProxyConverter",
+    "name": "org.xerial.sqlite-jdbc.jdbc3.JDBC3DatabaseMetaData",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "ch.qos.logback.classic.pattern.ThrowableProxyConverter",
+    "name": "org.xerial.sqlite-jdbc.jdbc4.JDBC4Connection",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "ch.qos.logback.classic.pattern.NopExceptionConverter",
+    "name": "org.xerial.sqlite-jdbc.SQLiteConnection",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "ch.qos.logback.classic.pattern.ReplaceConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.FormatTimeConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.Iso8601RelativeTimeConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.RelativeTimeConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.ContextNameConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.MarkerConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.PropertyConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.UtilConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.ExceptionalThrowableProxyConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.ShortenedThrowableConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.ClientIPConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.FileDateConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.ConstantConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.SequenceNumberConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.ColorConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.BoldConverter",
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "ch.qos.logback.classic.pattern.HighlightConverter",
+    "name": "org.xerial.sqlite-jdbc.SQLiteConfig",
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   }

@@ -130,7 +130,7 @@ Options:
 
 ---
 
-## MCP 工具（26 个工具）
+## MCP 工具（22 个工具）
 
 以 MCP 服务模式运行时，Java Code Indexer 提供以下工具：
 
@@ -157,10 +157,6 @@ Options:
 | `get_bean_dependencies` | 查找 Bean 的依赖（它依赖哪些 Bean） |
 | `get_bean_dependents` | 查找依赖该 Bean 的其他 Bean |
 | `find_related_tests` | 查找与源代码相关的测试类 |
-| `reindex` | 手动触发增量重新索引 |
-| `index_status` | 查看索引状态和监听状态 |
-| `search_symbols` | 增强的符号搜索：支持按类型、注解过滤 |
-| `get_code_metrics` | 获取代码度量（行数、方法数、复杂度） |
 
 ---
 
@@ -169,41 +165,9 @@ Options:
 在项目根目录创建 `.jindexer/config.yaml`（可选）：
 
 ```yaml
-# 数据目录
+project_root: /path/to/project
 data_dir: .jindexer
-
-# 索引设置
-indexing:
-  threads: 4                    # 索引线程数
-  extract_javadoc: false        # 提取 Javadoc 注释
-  follow_symlinks: false        # 跟随符号链接
-  max_file_size_kb: 512         # 最大文件大小 (KB)
-
-# 存储
-storage:
-  db_name: index.db             # 数据库文件名
-
-# 日志
-log:
-  level: INFO                   # 日志级别 (DEBUG/INFO/WARN/ERROR)
-  verbose: false                # 详细输出
-
-# 文件监听（文件变化时自动重新索引）
-watch:
-  enabled: true                 # 启用后台文件监听
-  interval: 5                   # 检查间隔（秒）
-  exclude:                      # 排除的目录
-    - "**/target/**"
-    - "**/build/**"
-    - "**/node_modules/**"
-    - "**/.git/**"
-
-# 多项目模式
-projects:
-  - name: backend
-    root: /path/to/backend
-  - name: frontend
-    root: /path/to/frontend
+threads: 4
 ```
 
 ### 环境变量
