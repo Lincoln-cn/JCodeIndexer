@@ -15,6 +15,7 @@ import com.sodlinken.jindexer.config.Config;
 import com.sodlinken.jindexer.model.Annotation;
 import com.sodlinken.jindexer.model.ApiRoute;
 import com.sodlinken.jindexer.model.BeanDependency;
+import com.sodlinken.jindexer.model.BeanSource;
 import com.sodlinken.jindexer.model.Call;
 import com.sodlinken.jindexer.model.Reference;
 import com.sodlinken.jindexer.model.Symbol;
@@ -58,6 +59,7 @@ public class JavaParserAdapter {
         List<String> errors = new ArrayList<>();
         List<ApiRoute> apiRoutes = new ArrayList<>();
         List<BeanDependency> beanDependencies = new ArrayList<>();
+        List<BeanSource> beanSources = new ArrayList<>();
 
         try {
             String content = Files.readString(filePath);
@@ -105,6 +107,9 @@ public class JavaParserAdapter {
 
                 // 提取 Bean 依赖
                 beanDependencies.addAll(extractBeanDependencies(clazz, relativePath));
+
+                // 提取 Bean 定义来源
+                beanSources.addAll(extractBeanSources(clazz, relativePath));
 
                 // 方法符号
                 clazz.getMethods().forEach(method -> {
@@ -313,7 +318,7 @@ public class JavaParserAdapter {
         List<TestMapping> testMappings = extractTestMappings(relativePath, symbols);
 
         return new ParseResult(symbols, references, calls, annotations, errors,
-            apiRoutes, beanDependencies, testMappings, List.of(), List.of());
+            apiRoutes, beanDependencies, testMappings, List.of(), beanSources);
     }
 
     private String buildClassSignature(ClassOrInterfaceDeclaration clazz) {
@@ -580,6 +585,51 @@ public class JavaParserAdapter {
         }
 
         return deps;
+    }
+
+    /**
+     * 提取 Bean 定义来源（@Bean 方法）
+     */
+    private List<BeanSource> extractBeanSources(ClassOrInterfaceDeclaration clazz, String relativePath) {
+        List<BeanSource> sources = new ArrayList<>();
+
+        // 只处理 @Configuration 类
+        if (!hasAnyAnnotation(clazz, "Configuration")) return sources;
+
+        for (MethodDeclaration method : clazz.getMethods()) {
+            var beanAnn = method.getAnnotationByName("Bean");
+            if (beanAnn.isPresent()) {
+                String returnType = method.getTypeAsString();
+                String methodName = method.getNameAsString();
+                String beanName = extractBeanName(method);
+                if (beanName == null) beanName = toLowerCaseFirst(methodName);
+                int startLine = method.getBegin().map(p -> p.line).orElse(0);
+                sources.add(new BeanSource(0, 0, returnType, beanName, "@Bean", relativePath, startLine));
+            }
+        }
+        return sources;
+    }
+
+    private String extractBeanName(MethodDeclaration method) {
+        var ann = method.getAnnotationByName("Bean");
+        if (ann.isEmpty()) return null;
+        var expr = ann.get();
+        if (expr instanceof SingleMemberAnnotationExpr single) {
+            String value = single.getMemberValue().toString();
+            return cleanString(value);
+        } else if (expr instanceof NormalAnnotationExpr normal) {
+            for (var pair : normal.getPairs()) {
+                if ("value".equals(pair.getNameAsString()) || "name".equals(pair.getNameAsString())) {
+                    return cleanString(pair.getValue().toString());
+                }
+            }
+        }
+        return null;
+    }
+
+    private String toLowerCaseFirst(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toLowerCase(s.charAt(0)) + s.substring(1);
     }
 
     private boolean hasAnyAnnotation(NodeWithAnnotations<?> node, String... names) {
