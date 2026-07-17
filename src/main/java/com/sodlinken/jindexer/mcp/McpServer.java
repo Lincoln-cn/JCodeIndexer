@@ -278,6 +278,8 @@ public class McpServer {
                 case "initialize" -> handleInitialize(idElement, params);
                 case "tools/list" -> handleToolsList(idElement);
                 case "tools/call" -> handleToolsCall(idElement, params);
+                case "resources/list" -> handleResourcesList(idElement);
+                case "resources/read" -> handleResourcesRead(idElement, params);
                 case "ping" -> sendResult(idElement, Map.of("pong", true));
                 default -> sendError(idElement, -32601, "Method not found: " + method);
             }
@@ -300,6 +302,11 @@ public class McpServer {
         JsonObject tools = new JsonObject();
         tools.addProperty("listChanged", false);
         capabilities.add("tools", tools);
+
+        JsonObject resources = new JsonObject();
+        resources.addProperty("listChanged", false);
+        capabilities.add("resources", resources);
+
         result.add("capabilities", capabilities);
 
         sendResult(id, result);
@@ -317,6 +324,86 @@ public class McpServer {
             throw new IllegalArgumentException("项目不存在: " + projectName + "，可用项目: " + projects.keySet());
         }
         return ctx;
+    }
+
+    private void handleResourcesList(JsonElement id) {
+        JsonArray resourcesArray = new JsonArray();
+
+        // 索引统计资源
+        JsonObject statsResource = new JsonObject();
+        statsResource.addProperty("uri", "indexer://stats");
+        statsResource.addProperty("name", "Index Statistics");
+        statsResource.addProperty("description", "Current index statistics for all projects");
+        statsResource.addProperty("mimeType", "application/json");
+        resourcesArray.add(statsResource);
+
+        // 项目列表资源
+        JsonObject projectsResource = new JsonObject();
+        projectsResource.addProperty("uri", "indexer://projects");
+        projectsResource.addProperty("name", "Project List");
+        projectsResource.addProperty("description", "All indexed projects");
+        projectsResource.addProperty("mimeType", "application/json");
+        resourcesArray.add(projectsResource);
+
+        JsonObject result = new JsonObject();
+        result.add("resources", resourcesArray);
+        sendResult(id, result);
+    }
+
+    private void handleResourcesRead(JsonElement id, JsonObject params) {
+        String uri = params.has("uri") ? params.get("uri").getAsString() : "";
+
+        try {
+            Object content;
+            switch (uri) {
+                case "indexer://stats" -> content = gatherAllStats();
+                case "indexer://projects" -> content = gatherProjectList();
+                default -> {
+                    sendError(id, -32602, "Unknown resource: " + uri);
+                    return;
+                }
+            }
+
+            JsonObject result = new JsonObject();
+            JsonArray contents = new JsonArray();
+            JsonObject contentObj = new JsonObject();
+            contentObj.addProperty("uri", uri);
+            contentObj.addProperty("mimeType", "application/json");
+            contentObj.addProperty("text", gson.toJson(content));
+            contents.add(contentObj);
+            result.add("contents", contents);
+            sendResult(id, result);
+        } catch (Exception e) {
+            sendError(id, -32603, "Failed to read resource: " + e.getMessage());
+        }
+    }
+
+    private Map<String, Object> gatherAllStats() throws Exception {
+        List<Map<String, Object>> projectStats = new ArrayList<>();
+        for (var entry : projects.entrySet()) {
+            ProjectContext ctx = entry.getValue();
+            int[] stats = ctx.storage().getProjectStats();
+            projectStats.add(Map.of(
+                "name", entry.getKey(),
+                "symbols", stats[0],
+                "references", stats[1],
+                "calls", stats[2],
+                "chunks", stats[3]
+            ));
+        }
+        return Map.of("projects", projectStats, "total_projects", projectStats.size());
+    }
+
+    private Map<String, Object> gatherProjectList() {
+        List<Map<String, Object>> projectList = new ArrayList<>();
+        for (var entry : projects.entrySet()) {
+            ProjectContext ctx = entry.getValue();
+            projectList.add(Map.of(
+                "name", entry.getKey(),
+                "root", ctx.config().getProjectRoot().toString()
+            ));
+        }
+        return Map.of("projects", projectList, "total", projectList.size());
     }
 
     private void handleToolsList(JsonElement id) {
