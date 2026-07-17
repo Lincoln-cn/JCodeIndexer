@@ -422,88 +422,39 @@ public class McpServer {
             "【测试关联】查找与源代码相关的测试类。使用场景：修改代码后知道需要运行哪些测试，了解测试覆盖情况。",
             relatedTestsParams));
 
-        // 15. find_annotations（查找符号的所有注解）
-        Map<String, Object> findAnnotationsParams = new LinkedHashMap<>();
-        findAnnotationsParams.put("symbol_name", Map.of("type", "string", "description", "符号名称或限定名"));
-        if (multiProject) findAnnotationsParams.put("project", projectParam);
-        toolsArray.add(createTool("find_annotations", "查找符号的所有注解", findAnnotationsParams));
-
-        // 16. find_by_annotation（查找带特定注解的符号）
-        Map<String, Object> findByAnnotationParams = new LinkedHashMap<>();
-        findByAnnotationParams.put("annotation_name", Map.of("type", "string", "description", "注解名"));
-        findByAnnotationParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
-        if (multiProject) findByAnnotationParams.put("project", projectParam);
-        toolsArray.add(createTool("find_by_annotation", "查找带特定注解的所有符号", findByAnnotationParams));
-
-        // 17. find_api_routes（查找 API 路由映射）
-        Map<String, Object> findApiRoutesParams = new LinkedHashMap<>();
-        findApiRoutesParams.put("query", Map.of("type", "string", "description", "路径关键词"));
-        findApiRoutesParams.put("http_method", Map.of("type", "string", "description", "HTTP 方法过滤: GET/POST/PUT/DELETE/PATCH"));
-        findApiRoutesParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 50));
-        if (multiProject) findApiRoutesParams.put("project", projectParam);
-        toolsArray.add(createTool("find_api_routes", "查找 API 路由映射（URL → Controller 方法）", findApiRoutesParams));
-
-        // 18. find_route（根据 HTTP 方法和路径查找路由）
-        Map<String, Object> findRouteParams = new LinkedHashMap<>();
-        findRouteParams.put("http_method", Map.of("type", "string", "description", "HTTP 方法: GET/POST/PUT/DELETE/PATCH"));
-        findRouteParams.put("path", Map.of("type", "string", "description", "URL 路径: /api/users/123"));
-        if (multiProject) findRouteParams.put("project", projectParam);
-        toolsArray.add(createTool("find_route", "根据 HTTP 方法和路径查找对应的 Controller 方法", findRouteParams));
-
-        // 19. get_type_hierarchy（获取类的继承层次结构）
-        Map<String, Object> typeHierarchyParams = new LinkedHashMap<>();
-        typeHierarchyParams.put("class_name", Map.of("type", "string", "description", "类名或限定名"));
-        typeHierarchyParams.put("direction", Map.of("type", "string", "description", "up（父类链）| down（子类树）| both（双向）", "default", "both"));
-        typeHierarchyParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 50));
-        if (multiProject) typeHierarchyParams.put("project", projectParam);
-        toolsArray.add(createTool("get_type_hierarchy", "获取类的完整继承层次结构（父类链 + 子类树）", typeHierarchyParams));
-
-        // 20. get_bean_dependencies（查找 Bean 的依赖）
-        Map<String, Object> beanDepsParams = new LinkedHashMap<>();
-        beanDepsParams.put("bean_name", Map.of("type", "string", "description", "Bean 名称或限定名"));
-        beanDepsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
-        if (multiProject) beanDepsParams.put("project", projectParam);
-        toolsArray.add(createTool("get_bean_dependencies", "查找 Bean 的依赖（它依赖哪些其他 Bean）", beanDepsParams));
-
-        // 21. get_bean_dependents（查找依赖该 Bean 的其他 Bean）
-        Map<String, Object> beanDependentsParams = new LinkedHashMap<>();
-        beanDependentsParams.put("bean_name", Map.of("type", "string", "description", "Bean 名称或限定名"));
-        beanDependentsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
-        if (multiProject) beanDependentsParams.put("project", projectParam);
-        toolsArray.add(createTool("get_bean_dependents", "查找依赖该 Bean 的其他 Bean（谁注入了它）", beanDependentsParams));
-
-        // 22. find_related_tests（查找与源代码相关的测试类）
-        Map<String, Object> relatedTestsParams = new LinkedHashMap<>();
-        relatedTestsParams.put("class_name", Map.of("type", "string", "description", "源类名或限定名"));
-        relatedTestsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 10));
-        if (multiProject) relatedTestsParams.put("project", projectParam);
-        toolsArray.add(createTool("find_related_tests", "查找与源代码相关的测试类", relatedTestsParams));
-
         // 23. reindex（手动触发增量重新索引）
         Map<String, Object> reindexParams = new LinkedHashMap<>();
         if (multiProject) reindexParams.put("project", projectParam);
-        toolsArray.add(createTool("reindex", "手动触发增量重新索引（通常由后台自动完成）", reindexParams));
+        toolsArray.add(createTool("reindex",
+            "【重新索引】手动触发项目重新索引。使用场景：文件变更后索引未自动更新，或需要强制刷新索引数据。返回处理的文件数和耗时。",
+            reindexParams));
 
         // 24. index_status（查看索引状态）
         Map<String, Object> indexStatusParams = new LinkedHashMap<>();
         if (multiProject) indexStatusParams.put("project", projectParam);
-        toolsArray.add(createTool("index_status", "查看索引状态：最后更新时间、文件数、后台监听状态", indexStatusParams));
+        toolsArray.add(createTool("index_status",
+            "【索引状态】查看当前索引的统计信息：最后索引时间、符号数、文件数、代码块数等。使用场景：确认索引是否最新，了解项目规模。",
+            indexStatusParams));
 
         // 25. search_symbols（增强符号搜索）
         Map<String, Object> searchSymbolsParams = new LinkedHashMap<>();
-        searchSymbolsParams.put("query", Map.of("type", "string", "description", "搜索关键词"));
-        searchSymbolsParams.put("kind", Map.of("type", "string", "description", "符号类型过滤: CLASS/METHOD/FIELD"));
-        searchSymbolsParams.put("annotation", Map.of("type", "string", "description", "注解过滤: RestController/Service/..."));
+        searchSymbolsParams.put("query", Map.of("type", "string", "description", "搜索关键词（支持 * 通配符，如 *Service, getUser*）"));
+        searchSymbolsParams.put("kind", Map.of("type", "string", "description", "符号类型过滤: CLASS/METHOD/FIELD（可选）"));
+        searchSymbolsParams.put("annotation", Map.of("type", "string", "description", "按注解过滤（如 RestController, Service, Component）（可选）"));
         searchSymbolsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
         if (multiProject) searchSymbolsParams.put("project", projectParam);
-        toolsArray.add(createTool("search_symbols", "增强的符号搜索：支持按类型、注解过滤", searchSymbolsParams));
+        toolsArray.add(createTool("search_symbols",
+            "【高级符号搜索】增强的符号搜索，支持按类型和注解过滤。使用场景：查找所有 Controller（kind=CLASS, annotation=RestController），或查找所有 getter 方法（kind=METHOD, query=get*）。",
+            searchSymbolsParams));
 
         // 26. get_code_metrics（获取代码度量）
         Map<String, Object> codeMetricsParams = new LinkedHashMap<>();
-        codeMetricsParams.put("class_name", Map.of("type", "string", "description", "类名或限定名"));
-        codeMetricsParams.put("file_path", Map.of("type", "string", "description", "文件路径"));
+        codeMetricsParams.put("class_name", Map.of("type", "string", "description", "类名或限定名（如 UserService, com.example.OrderService）"));
+        codeMetricsParams.put("file_path", Map.of("type", "string", "description", "文件路径（可选，与 class_name 二选一）"));
         if (multiProject) codeMetricsParams.put("project", projectParam);
-        toolsArray.add(createTool("get_code_metrics", "获取类/文件的代码度量（行数、方法数、复杂度）", codeMetricsParams));
+        toolsArray.add(createTool("get_code_metrics",
+            "【代码度量】获取类或文件的代码度量信息：代码行数、方法数、字段数、复杂度估算。使用场景：评估代码复杂度，识别大型类，代码审查前了解规模。",
+            codeMetricsParams));
 
         JsonObject result = new JsonObject();
         result.add("tools", toolsArray);
