@@ -198,6 +198,12 @@ public class EventFileWatcher {
      * 处理单个文件系统事件
      */
     private void processEvent(WatchEvent.Kind<?> kind, Path changed) {
+        // 配置文件变化优先处理（即使在排除目录中）
+        if (isConfigFile(changed)) {
+            pendingConfigChanges.add(changed);
+            return;
+        }
+
         if (isExcluded(changed)) return;
 
         if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
@@ -219,11 +225,6 @@ public class EventFileWatcher {
 
         if (isSourceFile(changed)) {
             pendingChanges.add(changed);
-        }
-
-        // 检测配置文件变化，触发配置热更新
-        if (isConfigFile(changed)) {
-            pendingConfigChanges.add(changed);
         }
     }
 
