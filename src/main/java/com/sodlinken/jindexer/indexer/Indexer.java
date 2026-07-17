@@ -203,6 +203,9 @@ public class Indexer {
             log.info("索引完成: 更新={} 删除={} 耗时={}ms 错误={}",
                 toUpdate.size(), toDelete.size(), durationMs, errors.size());
 
+            // 更新索引时间戳
+            storage.upsertIndexMetadata("last_indexed_at", String.valueOf(System.currentTimeMillis()));
+
             return result;
         } finally {
             indexing = false;
