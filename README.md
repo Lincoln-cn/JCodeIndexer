@@ -135,7 +135,7 @@ No flags → start MCP server over stdio.
 
 ---
 
-## MCP Tools (22 tools)
+## MCP Tools (26 tools)
 
 When running as an MCP server, Java Code Indexer exposes these tools:
 
@@ -162,6 +162,10 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 | `get_bean_dependencies` | Find Bean's dependencies (what it depends on) |
 | `get_bean_dependents` | Find Beans that depend on this Bean |
 | `find_related_tests` | Find test classes related to source code |
+| `reindex` | Trigger re-indexing of the project |
+| `index_status` | Get current indexing status and statistics |
+| `search_symbols` | Advanced symbol search with kind/annotation filters |
+| `get_code_metrics` | Get code metrics (LOC, method/field count) for a class |
 
 ---
 
@@ -170,25 +174,71 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 Create `.jindexer/config.yaml` in your project root (optional):
 
 ```yaml
+# === Project Paths ===
 # Project root (CLI --project-root overrides this)
 project_root: /path/to/project
 
-# Data directory
+# Data directory (stores index.db)
 data_dir: .jindexer
 
-# Indexing threads
+# === Indexing ===
+# Number of indexing threads
 indexing_threads: 4
 
-# Max file size (KB)
+# Max file size to index (KB)
 max_file_size_kb: 512
 
-# Exclude directories
-exclude_dirs:
+# Extract Javadoc comments
+extract_javadoc: false
+
+# Follow symbolic links
+follow_symlinks: false
+
+# Include patterns (files to index)
+include_patterns:
+  - "**/*.java"
+  - "**/*.yml"
+  - "**/*.yaml"
+  - "**/*.properties"
+  - "**/*.env"
+  - "**/pom.xml"
+  - "**/build.gradle"
+  - "**/build.gradle.kts"
+
+# Exclude patterns (files to skip)
+exclude_patterns:
   - "**/target/**"
   - "**/build/**"
+  - "**/.git/**"
   - "**/node_modules/**"
 
-# Multi-project mode
+# === Storage ===
+# Database filename
+db_name: index.db
+
+# === Logging ===
+# Log level: DEBUG, INFO, WARN, ERROR
+log_level: INFO
+
+# Enable verbose logging
+verbose: false
+
+# === File Watcher ===
+# Enable automatic re-indexing on file changes
+watch_enabled: true
+
+# Watch interval in seconds
+watch_interval_seconds: 5
+
+# Directories to exclude from watching
+watch_exclude:
+  - "**/target/**"
+  - "**/build/**"
+  - "**/.git/**"
+  - "**/node_modules/**"
+
+# === Multi-project Mode ===
+# Define multiple projects to index together
 projects:
   - name: backend
     root: /path/to/backend
@@ -196,12 +246,29 @@ projects:
     root: /path/to/frontend
 ```
 
-### Environment Variables
+### Configuration Priority
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `INDEXER_THREADS` | Indexing thread count | `4` |
-| `INDEXER_LOG_LEVEL` | Log level | `INFO` |
+CLI flags → environment variables → config file → defaults.
+
+### All Configuration Options
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `project_root` | string | - | Project root directory |
+| `data_dir` | string | `.jindexer` | Data directory for index database |
+| `indexing_threads` | int | `4` | Number of indexing threads |
+| `max_file_size_kb` | int | `512` | Max file size to index (KB) |
+| `extract_javadoc` | bool | `false` | Extract Javadoc comments |
+| `follow_symlinks` | bool | `false` | Follow symbolic links |
+| `include_patterns` | list | `["**/*.java", ...]` | File patterns to index |
+| `exclude_patterns` | list | `["**/target/**", ...]` | File patterns to skip |
+| `db_name` | string | `index.db` | Database filename |
+| `log_level` | string | `INFO` | Log level (DEBUG/INFO/WARN/ERROR) |
+| `verbose` | bool | `false` | Enable verbose logging |
+| `watch_enabled` | bool | `true` | Enable file watcher |
+| `watch_interval_seconds` | int | `5` | File watcher interval |
+| `watch_exclude` | list | `["**/target/**", ...]` | Directories to exclude from watching |
+| `projects` | list | `[]` | Multi-project mode configuration |
 
 Priority: CLI flags → environment variables → config file → defaults.
 
@@ -276,7 +343,7 @@ Add to your MCP configuration:
 
 ### Database Schema
 
-Eleven core tables:
+Thirteen core tables:
 
 - **`symbols`** — classes, methods, fields with location and signatures
 - **`references`** — symbol usage locations across the codebase
@@ -289,6 +356,8 @@ Eleven core tables:
 - **`api_routes`** — Spring Boot API route mappings (URL → Controller)
 - **`bean_dependencies`** — Spring Bean injection relationships
 - **`test_mappings`** — Test class to source class associations
+- **`index_metadata`** — Index metadata (v1.7.0+)
+- **`code_metrics`** — Code metrics information (v1.7.0+)
 
 Plus FTS5 full-text search tables (`symbols_fts`, `chunks_fts`) with auto-sync triggers.
 

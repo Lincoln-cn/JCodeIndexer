@@ -130,7 +130,7 @@ Options:
 
 ---
 
-## MCP 工具（22 个工具）
+## MCP 工具（26 个工具）
 
 以 MCP 服务模式运行时，Java Code Indexer 提供以下工具：
 
@@ -157,6 +157,10 @@ Options:
 | `get_bean_dependencies` | 查找 Bean 的依赖（它依赖哪些 Bean） |
 | `get_bean_dependents` | 查找依赖该 Bean 的其他 Bean |
 | `find_related_tests` | 查找与源代码相关的测试类 |
+| `reindex` | 触发项目重新索引 |
+| `index_status` | 获取当前索引状态和统计信息 |
+| `search_symbols` | 高级符号搜索，支持类型/注解过滤 |
+| `get_code_metrics` | 获取类的代码度量（代码行数、方法/字段数量） |
 
 ---
 
@@ -165,19 +169,101 @@ Options:
 在项目根目录创建 `.jindexer/config.yaml`（可选）：
 
 ```yaml
+# === 项目路径 ===
+# 项目根目录（CLI --project-root 会覆盖此配置）
 project_root: /path/to/project
+
+# 数据目录（存储 index.db）
 data_dir: .jindexer
-threads: 4
+
+# === 索引设置 ===
+# 索引线程数
+indexing_threads: 4
+
+# 最大文件大小（KB）
+max_file_size_kb: 512
+
+# 是否提取 Javadoc 注释
+extract_javadoc: false
+
+# 是否跟随符号链接
+follow_symlinks: false
+
+# 包含的文件模式
+include_patterns:
+  - "**/*.java"
+  - "**/*.yml"
+  - "**/*.yaml"
+  - "**/*.properties"
+  - "**/*.env"
+  - "**/pom.xml"
+  - "**/build.gradle"
+  - "**/build.gradle.kts"
+
+# 排除的文件模式
+exclude_patterns:
+  - "**/target/**"
+  - "**/build/**"
+  - "**/.git/**"
+  - "**/node_modules/**"
+
+# === 存储设置 ===
+# 数据库文件名
+db_name: index.db
+
+# === 日志设置 ===
+# 日志级别：DEBUG, INFO, WARN, ERROR
+log_level: INFO
+
+# 启用详细日志
+verbose: false
+
+# === 文件监听 ===
+# 启用文件变更自动重新索引
+watch_enabled: true
+
+# 监听间隔（秒）
+watch_interval_seconds: 5
+
+# 监听排除的目录
+watch_exclude:
+  - "**/target/**"
+  - "**/build/**"
+  - "**/.git/**"
+  - "**/node_modules/**"
+
+# === 多项目模式 ===
+# 定义多个项目一起索引
+projects:
+  - name: backend
+    root: /path/to/backend
+  - name: frontend
+    root: /path/to/frontend
 ```
 
-### 环境变量
+### 配置优先级
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `INDEXER_THREADS` | 索引线程数 | `4` |
-| `INDEXER_LOG_LEVEL` | 日志级别 | `INFO` |
+CLI 参数 → 环境变量 → 配置文件 → 默认值
 
-优先级：CLI 参数 → 环境变量 → 配置文件 → 默认值。
+### 完整配置项说明
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `project_root` | string | - | 项目根目录 |
+| `data_dir` | string | `.jindexer` | 数据目录（存储索引数据库） |
+| `indexing_threads` | int | `4` | 索引线程数 |
+| `max_file_size_kb` | int | `512` | 最大文件大小（KB） |
+| `extract_javadoc` | bool | `false` | 提取 Javadoc 注释 |
+| `follow_symlinks` | bool | `false` | 跟随符号链接 |
+| `include_patterns` | list | `["**/*.java", ...]` | 要索引的文件模式 |
+| `exclude_patterns` | list | `["**/target/**", ...]` | 要跳过的文件模式 |
+| `db_name` | string | `index.db` | 数据库文件名 |
+| `log_level` | string | `INFO` | 日志级别（DEBUG/INFO/WARN/ERROR） |
+| `verbose` | bool | `false` | 启用详细日志 |
+| `watch_enabled` | bool | `true` | 启用文件监听 |
+| `watch_interval_seconds` | int | `5` | 文件监听间隔（秒） |
+| `watch_exclude` | list | `["**/target/**", ...]` | 监听排除的目录 |
+| `projects` | list | `[]` | 多项目模式配置 |
 
 ---
 
@@ -235,7 +321,7 @@ threads: 4
 
 ### 数据库 Schema
 
-十一张核心表：
+十三张核心表：
 
 - **`symbols`** — 类、方法、字段，含位置和签名
 - **`references`** — 符号在整个代码库中的使用位置
@@ -248,6 +334,8 @@ threads: 4
 - **`api_routes`** — Spring Boot API 路由映射（URL → Controller）
 - **`bean_dependencies`** — Spring Bean 注入关系
 - **`test_mappings`** — 测试类与源类的关联映射
+- **`index_metadata`** — 索引元数据（v1.7.0+）
+- **`code_metrics`** — 代码度量信息（v1.7.0+）
 
 另外还有 FTS5 全文搜索表（`symbols_fts`、`chunks_fts`），通过触发器自动同步。
 
