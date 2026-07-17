@@ -117,8 +117,14 @@ public class ConfigLoader {
             if (watchMap.containsKey("enabled")) {
                 config.setWatchEnabled(toBool(watchMap.get("enabled"), true));
             }
+            if (watchMap.containsKey("mode")) {
+                config.setWatchMode((String) watchMap.get("mode"));
+            }
             if (watchMap.containsKey("interval")) {
                 config.setWatchIntervalSeconds(toInt(watchMap.get("interval"), 5));
+            }
+            if (watchMap.containsKey("debounce_ms")) {
+                config.setWatchDebounceMs(toInt(watchMap.get("debounce_ms"), 500));
             }
             if (watchMap.containsKey("exclude")) {
                 @SuppressWarnings("unchecked")
@@ -140,6 +146,11 @@ public class ConfigLoader {
                 }
             }
             config.setProjects(projects);
+        }
+
+        // 自动发现多模块
+        if (map.containsKey("auto_discover")) {
+            config.setAutoDiscover(toBool(map.get("auto_discover"), false));
         }
     }
 

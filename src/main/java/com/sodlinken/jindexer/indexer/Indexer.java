@@ -862,7 +862,7 @@ public class Indexer {
     }
 
     /**
-     * 增量索引指定的文件列表（用于 FileWatcher 后台更新）
+     * 增量索引指定的文件列表（用于 FileWatcher/EventFileWatcher 后台更新）
      */
     public void incrementalReindex(List<Path> files) {
         if (files.isEmpty()) return;
@@ -896,9 +896,34 @@ public class Indexer {
                 }
             }
 
+            // 清理已删除的文件
+            cleanupDeletedFiles(projectRoot);
+
             log.info("增量索引完成: {} 个文件", files.size());
         } finally {
             indexing = false;
+        }
+    }
+
+    /**
+     * 清理已删除的文件：检查 file_meta 中存在但磁盘上不存在的文件
+     */
+    private void cleanupDeletedFiles(Path projectRoot) {
+        try {
+            var allFileMeta = storage.findAllFileMeta();
+            int deleted = 0;
+            for (var meta : allFileMeta) {
+                Path filePath = projectRoot.resolve(meta.filePath());
+                if (!java.nio.file.Files.exists(filePath)) {
+                    storage.deleteAllByFile(meta.filePath());
+                    deleted++;
+                }
+            }
+            if (deleted > 0) {
+                log.info("清理了 {} 个已删除文件的索引", deleted);
+            }
+        } catch (Exception e) {
+            log.warn("清理删除文件失败", e);
         }
     }
 }

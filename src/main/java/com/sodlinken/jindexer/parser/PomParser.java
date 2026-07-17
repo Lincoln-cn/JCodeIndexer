@@ -74,6 +74,29 @@ public class PomParser {
         return "pom.xml".equals(fileName.toLowerCase());
     }
 
+    /**
+     * 解析 pom.xml 的 <modules> 标签，返回子模块名称列表
+     */
+    public List<String> parseModules(Path pomPath) throws Exception {
+        List<String> modules = new ArrayList<>();
+        if (!Files.exists(pomPath)) return modules;
+
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(false);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        Document doc = builder.parse(pomPath.toFile());
+
+        NodeList moduleNodes = doc.getElementsByTagName("module");
+        for (int i = 0; i < moduleNodes.getLength(); i++) {
+            String moduleName = moduleNodes.item(i).getTextContent().trim();
+            if (!moduleName.isEmpty()) {
+                modules.add(moduleName);
+            }
+        }
+        return modules;
+    }
+
     private Map<String, String> extractProperties(Document doc) {
         Map<String, String> props = new LinkedHashMap<>();
         NodeList propNodes = doc.getElementsByTagName("properties");

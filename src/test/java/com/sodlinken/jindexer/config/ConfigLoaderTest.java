@@ -94,4 +94,50 @@ class ConfigLoaderTest {
         Config config = ConfigLoader.load(tempDir, tempDir.resolve(".jindexer"));
         assertEquals("root-config.db", config.getDbName());
     }
+
+    @Test
+    void loadWatchModeConfig(@TempDir Path tempDir) throws IOException {
+        Path jindexer = tempDir.resolve(".jindexer");
+        Files.createDirectories(jindexer);
+        Files.writeString(jindexer.resolve("config.yaml"),
+            """
+            watch:
+              mode: polling
+              debounce_ms: 300
+              interval: 10
+            """);
+
+        Config config = ConfigLoader.load(tempDir, jindexer);
+        assertEquals("polling", config.getWatchMode());
+        assertEquals(300, config.getWatchDebounceMs());
+        assertEquals(10, config.getWatchIntervalSeconds());
+    }
+
+    @Test
+    void watchDefaults(@TempDir Path tempDir) {
+        Config config = ConfigLoader.load(tempDir, tempDir.resolve(".jindexer"));
+        assertEquals("event", config.getWatchMode());
+        assertEquals(500, config.getWatchDebounceMs());
+        assertEquals(5, config.getWatchIntervalSeconds());
+        assertTrue(config.isWatchEnabled());
+    }
+
+    @Test
+    void loadAutoDiscoverConfig(@TempDir Path tempDir) throws IOException {
+        Path jindexer = tempDir.resolve(".jindexer");
+        Files.createDirectories(jindexer);
+        Files.writeString(jindexer.resolve("config.yaml"),
+            """
+            auto_discover: true
+            """);
+
+        Config config = ConfigLoader.load(tempDir, jindexer);
+        assertTrue(config.isAutoDiscover());
+    }
+
+    @Test
+    void autoDiscoverDefault(@TempDir Path tempDir) {
+        Config config = ConfigLoader.load(tempDir, tempDir.resolve(".jindexer"));
+        assertFalse(config.isAutoDiscover());
+    }
 }

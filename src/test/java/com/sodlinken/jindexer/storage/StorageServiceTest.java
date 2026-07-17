@@ -250,6 +250,29 @@ class StorageServiceTest {
         assertEquals(1024, result.get().size());
     }
 
+    @Test
+    void findAllFileMeta() throws SQLException {
+        // 插入多个 FileMeta
+        storage.upsertFileMeta(new FileMeta("A.java", 100, System.currentTimeMillis(), "hash1", 1, System.currentTimeMillis()));
+        storage.upsertFileMeta(new FileMeta("B.java", 200, System.currentTimeMillis(), "hash2", 2, System.currentTimeMillis()));
+        storage.upsertFileMeta(new FileMeta("C.java", 300, System.currentTimeMillis(), "hash3", 3, System.currentTimeMillis()));
+
+        var all = storage.findAllFileMeta();
+        assertEquals(3, all.size());
+
+        // 验证包含所有文件
+        var paths = all.stream().map(FileMeta::filePath).toList();
+        assertTrue(paths.contains("A.java"));
+        assertTrue(paths.contains("B.java"));
+        assertTrue(paths.contains("C.java"));
+    }
+
+    @Test
+    void findAllFileMetaEmpty() throws SQLException {
+        var all = storage.findAllFileMeta();
+        assertTrue(all.isEmpty());
+    }
+
     // ==================== Project Stats ====================
 
     @Test

@@ -150,4 +150,48 @@ class PomParserTest {
         assertFalse(PomParser.isPomFile("build.gradle"));
         assertFalse(PomParser.isPomFile("pom.xml.bak"));
     }
+
+    // ==================== parseModules Tests ====================
+
+    @Test
+    void parseModules(@TempDir Path tempDir) throws Exception {
+        Path pom = tempDir.resolve("pom.xml");
+        Files.writeString(pom, """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <project>
+                <modelVersion>4.0.0</modelVersion>
+                <modules>
+                    <module>module-a</module>
+                    <module>module-b</module>
+                    <module>module-c</module>
+                </modules>
+            </project>
+            """);
+
+        List<String> modules = parser.parseModules(pom);
+        assertEquals(3, modules.size());
+        assertEquals("module-a", modules.get(0));
+        assertEquals("module-b", modules.get(1));
+        assertEquals("module-c", modules.get(2));
+    }
+
+    @Test
+    void parseModulesEmpty(@TempDir Path tempDir) throws Exception {
+        Path pom = tempDir.resolve("pom.xml");
+        Files.writeString(pom, """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <project>
+                <modelVersion>4.0.0</modelVersion>
+            </project>
+            """);
+
+        List<String> modules = parser.parseModules(pom);
+        assertTrue(modules.isEmpty());
+    }
+
+    @Test
+    void parseModulesFileNotExist(@TempDir Path tempDir) throws Exception {
+        List<String> modules = parser.parseModules(tempDir.resolve("nonexistent.xml"));
+        assertTrue(modules.isEmpty());
+    }
 }

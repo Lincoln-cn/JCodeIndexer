@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-07-18
+
+### Added
+- **文件监听升级**: 支持 WatchService 事件驱动模式
+  - 新增 `EventFileWatcher`：基于 Java NIO WatchService，延迟 < 100ms
+  - 配置 `watch.mode: event|polling`（默认 event）
+  - 配置 `watch.debounce_ms: 500`（去抖间隔）
+  - 支持 OVERFLOW 事件时自动 fallback 到全量 SHA-1 比对
+- **多模块自动发现**: Maven/Gradle 多模块项目自动索引子模块
+  - Maven: 递归解析 `pom.xml` 的 `<modules>` 标签
+  - Gradle: 解析 `settings.gradle` / `settings.gradle.kts` 的 `include` 语句
+  - 配置 `auto_discover: true` 启用自动发现
+  - 新增 MCP 工具: `list_modules`
+- **版本号统一**: 所有版本号从 pom.xml 引用，不再硬编码
+  - 新增 `Version.java` 工具类，运行时读取 `version.properties`
+- **文件删除清理**: 增量索引时自动清理已删除文件的索引数据
+
+### Changed
+- 重命名 `FileWatcher` → `PollingFileWatcher`
+- 新增 `EventFileWatcher` 事件驱动实现
+- `McpServer` 启动时自动创建并启动文件监听器
+- `McpServer` 关闭时自动停止文件监听器
+- `StorageService` 新增 `findAllFileMeta()` 方法
+
+### Testing
+- 新增 422 个测试（+27）
+- `EventFileWatcherTest`: 5 个测试
+- `VersionTest`: 3 个测试
+- `ModuleDiscoveryTest`: 8 个测试
+- `PomParserTest`: 3 个测试（parseModules）
+- `ConfigLoaderTest`: 4 个测试（watch.mode/debounce_ms/auto_discover）
+- `StorageServiceTest`: 2 个测试（findAllFileMeta）
+- `IndexerTest`: 1 个测试（cleanupDeletedFiles）
+- `McpAutoDiscoverTest`: 1 个测试
+
 ## [1.7.0] - 2026-07-17
 
 ### Added

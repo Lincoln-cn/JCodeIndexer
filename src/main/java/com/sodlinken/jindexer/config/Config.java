@@ -21,6 +21,7 @@ public class Config {
 
     // === 多项目 ===
     private List<Project> projects = new ArrayList<>();
+    private boolean autoDiscover = false;
 
     // === 索引 ===
     private int indexingThreads = 4;
@@ -44,7 +45,9 @@ public class Config {
 
     // === 文件监听 ===
     private boolean watchEnabled = true;
+    private String watchMode = "event"; // "event" | "polling"
     private int watchIntervalSeconds = 5;
+    private int watchDebounceMs = 500;
     private String[] watchExclude = new String[]{
         "**/target/**", "**/build/**", "**/.git/**", "**/node_modules/**"
     };
@@ -61,6 +64,9 @@ public class Config {
     public void setProjects(List<Project> projects) { this.projects = projects; }
 
     public boolean isMultiProject() { return !projects.isEmpty(); }
+
+    public boolean isAutoDiscover() { return autoDiscover; }
+    public void setAutoDiscover(boolean autoDiscover) { this.autoDiscover = autoDiscover; }
 
     /**
      * 为指定项目生成数据目录路径
@@ -106,8 +112,14 @@ public class Config {
     public boolean isWatchEnabled() { return watchEnabled; }
     public void setWatchEnabled(boolean watchEnabled) { this.watchEnabled = watchEnabled; }
 
+    public String getWatchMode() { return watchMode; }
+    public void setWatchMode(String watchMode) { this.watchMode = watchMode; }
+
     public int getWatchIntervalSeconds() { return watchIntervalSeconds; }
     public void setWatchIntervalSeconds(int watchIntervalSeconds) { this.watchIntervalSeconds = watchIntervalSeconds; }
+
+    public int getWatchDebounceMs() { return watchDebounceMs; }
+    public void setWatchDebounceMs(int watchDebounceMs) { this.watchDebounceMs = watchDebounceMs; }
 
     public String[] getWatchExclude() { return watchExclude; }
     public void setWatchExclude(String[] watchExclude) { this.watchExclude = watchExclude; }

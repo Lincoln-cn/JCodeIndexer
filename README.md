@@ -166,6 +166,7 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 | `index_status` | Get current indexing status and statistics |
 | `search_symbols` | Advanced symbol search with kind/annotation filters |
 | `get_code_metrics` | Get code metrics (LOC, method/field count) for a class |
+| `list_modules` | List auto-discovered sub-modules (auto_discover mode) |
 
 ---
 
@@ -227,8 +228,14 @@ verbose: false
 # Enable automatic re-indexing on file changes
 watch_enabled: true
 
-# Watch interval in seconds
+# Watch mode: event (NIO WatchService) or polling (SHA-1 check)
+watch_mode: event
+
+# Watch interval in seconds (polling mode)
 watch_interval_seconds: 5
+
+# Debounce interval in ms (event mode)
+watch_debounce_ms: 500
 
 # Directories to exclude from watching
 watch_exclude:
@@ -244,6 +251,10 @@ projects:
     root: /path/to/backend
   - name: frontend
     root: /path/to/frontend
+
+# === Auto Discover ===
+# Auto-discover Maven/Gradle sub-modules
+auto_discover: true
 ```
 
 ### Configuration Priority
@@ -266,11 +277,12 @@ CLI flags → environment variables → config file → defaults.
 | `log_level` | string | `INFO` | Log level (DEBUG/INFO/WARN/ERROR) |
 | `verbose` | bool | `false` | Enable verbose logging |
 | `watch_enabled` | bool | `true` | Enable file watcher |
-| `watch_interval_seconds` | int | `5` | File watcher interval |
+| `watch_mode` | string | `event` | Watch mode: `event` (NIO WatchService) or `polling` (SHA-1 check) |
+| `watch_interval_seconds` | int | `5` | File watcher interval (polling mode) |
+| `watch_debounce_ms` | int | `500` | Debounce interval in ms (event mode) |
 | `watch_exclude` | list | `["**/target/**", ...]` | Directories to exclude from watching |
+| `auto_discover` | bool | `false` | Auto-discover Maven/Gradle sub-modules |
 | `projects` | list | `[]` | Multi-project mode configuration |
-
-Priority: CLI flags → environment variables → config file → defaults.
 
 ---
 

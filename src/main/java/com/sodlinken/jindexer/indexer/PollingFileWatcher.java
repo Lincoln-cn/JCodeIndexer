@@ -16,11 +16,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 文件监听器：后台检测文件变化并触发增量索引
+ * 轮询模式文件监听器：定时检查文件变化并触发增量索引
  */
-public class FileWatcher {
+public class PollingFileWatcher {
 
-    private static final Logger log = LoggerFactory.getLogger(FileWatcher.class);
+    private static final Logger log = LoggerFactory.getLogger(PollingFileWatcher.class);
 
     private final Config config;
     private final Indexer indexer;
@@ -29,7 +29,7 @@ public class FileWatcher {
     private volatile boolean running = false;
     private volatile long lastCheckTime = 0;
 
-    public FileWatcher(Config config, Indexer indexer, StorageService storage) {
+    public PollingFileWatcher(Config config, Indexer indexer, StorageService storage) {
         this.config = config;
         this.indexer = indexer;
         this.storage = storage;
@@ -51,7 +51,7 @@ public class FileWatcher {
 
         running = true;
         scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "FileWatcher");
+            Thread t = new Thread(r, "PollingFileWatcher");
             t.setDaemon(true);
             return t;
         });

@@ -161,6 +161,7 @@ Options:
 | `index_status` | 获取当前索引状态和统计信息 |
 | `search_symbols` | 高级符号搜索，支持类型/注解过滤 |
 | `get_code_metrics` | 获取类的代码度量（代码行数、方法/字段数量） |
+| `list_modules` | 列出自动发现的所有子模块（auto_discover 模式） |
 
 ---
 
@@ -222,8 +223,14 @@ verbose: false
 # 启用文件变更自动重新索引
 watch_enabled: true
 
-# 监听间隔（秒）
+# 监听模式: event (NIO WatchService) 或 polling (SHA-1 比对)
+watch_mode: event
+
+# 监听间隔（秒，polling 模式）
 watch_interval_seconds: 5
+
+# 去抖间隔（毫秒，event 模式）
+watch_debounce_ms: 500
 
 # 监听排除的目录
 watch_exclude:
@@ -239,6 +246,10 @@ projects:
     root: /path/to/backend
   - name: frontend
     root: /path/to/frontend
+
+# === 自动发现 ===
+# 自动发现 Maven/Gradle 子模块
+auto_discover: true
 ```
 
 ### 配置优先级
@@ -261,6 +272,12 @@ CLI 参数 → 环境变量 → 配置文件 → 默认值
 | `log_level` | string | `INFO` | 日志级别（DEBUG/INFO/WARN/ERROR） |
 | `verbose` | bool | `false` | 启用详细日志 |
 | `watch_enabled` | bool | `true` | 启用文件监听 |
+| `watch_mode` | string | `event` | 监听模式：`event`（NIO WatchService）或 `polling`（SHA-1 比对） |
+| `watch_interval_seconds` | int | `5` | 文件监听间隔（polling 模式） |
+| `watch_debounce_ms` | int | `500` | 去抖间隔毫秒（event 模式） |
+| `watch_exclude` | list | `["**/target/**", ...]` | 监听排除的目录 |
+| `auto_discover` | bool | `false` | 自动发现 Maven/Gradle 子模块 |
+| `projects` | list | `[]` | 多项目模式配置 |
 | `watch_interval_seconds` | int | `5` | 文件监听间隔（秒） |
 | `watch_exclude` | list | `["**/target/**", ...]` | 监听排除的目录 |
 | `projects` | list | `[]` | 多项目模式配置 |

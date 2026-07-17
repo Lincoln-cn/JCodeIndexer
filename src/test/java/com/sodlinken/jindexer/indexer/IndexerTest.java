@@ -579,6 +579,44 @@ class IndexerTest {
         assertFalse(symbols.isEmpty());
     }
 
+    // ==================== Cleanup Deleted Files Tests ====================
+
+    @Test
+    void incrementalReindexCleansDeletedFiles() throws Exception {
+        // 创建两个 Java 文件
+        Path file1 = createJavaFile("Keep.java", """
+            package com.example;
+            public class Keep { private int x; }
+            """);
+        Path file2 = createJavaFile("Delete.java", """
+            package com.example;
+            public class Delete { private int y; }
+            """);
+
+        // 初始索引
+        indexer.index(ProgressListener.NONE);
+
+        // 验证两个文件都被索引
+        var keepSymbols = storage.searchSymbolsByName("Keep", 10);
+        var deleteSymbols = storage.searchSymbolsByName("Delete", 10);
+        assertFalse(keepSymbols.isEmpty());
+        assertFalse(deleteSymbols.isEmpty());
+
+        // 删除 file2
+        Files.delete(file2);
+
+        // 增量索引（触发 cleanupDeletedFiles）
+        indexer.incrementalReindex(List.of(file1));
+
+        // 验证 Delete 的索引被清理
+        var deleteSymbolsAfter = storage.searchSymbolsByName("Delete", 10);
+        assertTrue(deleteSymbolsAfter.isEmpty(), "Deleted file's symbols should be cleaned up");
+
+        // 验证 Keep 仍然存在
+        var keepSymbolsAfter = storage.searchSymbolsByName("Keep", 10);
+        assertFalse(keepSymbolsAfter.isEmpty());
+    }
+
     // ==================== Helper Methods ====================
 
     private Path createJavaFile(String fileName, String content) throws Exception {

@@ -917,6 +917,21 @@ public class StorageService implements AutoCloseable {
         }
     }
 
+    public List<FileMeta> findAllFileMeta() throws SQLException {
+        String sql = """
+            SELECT file_path, size, last_modified, sha1, symbol_count, last_indexed_at
+            FROM file_meta
+            """;
+        List<FileMeta> list = new ArrayList<>();
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                list.add(mapFileMeta(rs));
+            }
+        }
+        return list;
+    }
+
     public void upsertFileMeta(FileMeta meta) throws SQLException {
         String sql = """
             INSERT INTO file_meta (file_path, size, last_modified, sha1, symbol_count, last_indexed_at)

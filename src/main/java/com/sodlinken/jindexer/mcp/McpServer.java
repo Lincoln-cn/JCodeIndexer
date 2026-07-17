@@ -2,7 +2,10 @@ package com.sodlinken.jindexer.mcp;
 
 import com.google.gson.*;
 import com.sodlinken.jindexer.config.Config;
+import com.sodlinken.jindexer.indexer.EventFileWatcher;
 import com.sodlinken.jindexer.indexer.Indexer;
+import com.sodlinken.jindexer.indexer.ModuleDiscovery;
+import com.sodlinken.jindexer.indexer.PollingFileWatcher;
 import com.sodlinken.jindexer.indexer.ProgressListener;
 import com.sodlinken.jindexer.model.*;
 import com.sodlinken.jindexer.search.SearchProvider;
@@ -28,6 +31,7 @@ public class McpServer {
 
     private final Config config;
     private final Map<String, ProjectContext> projects = new LinkedHashMap<>();
+    private final Map<String, Object> fileWatchers = new LinkedHashMap<>(); // EventFileWatcher 或 PollingFileWatcher
     private String defaultProjectName;
     private final long startTime = System.currentTimeMillis();
 
@@ -44,19 +48,25 @@ public class McpServer {
             // 多项目模式：每个项目使用自己的 .jindexer/ 作为数据目录
             String dataDirName = config.getDataDir().getFileName().toString(); // "jindexer" or ".jindexer"
             for (Config.Project proj : config.getProjects()) {
-                Config projConfig = new Config();
-                projConfig.setProjectRoot(proj.root());
-                projConfig.setDataDir(proj.root().resolve(dataDirName));
-                projConfig.setDbName(config.getDbName());
-                projConfig.setExtractJavadoc(config.isExtractJavadoc());
-                projConfig.setFollowSymlinks(config.isFollowSymlinks());
-                projConfig.setMaxFileSizeKB(config.getMaxFileSizeKB());
-                projConfig.setIndexingThreads(config.getIndexingThreads());
+                Config projConfig = createProjectConfig(proj.root(), dataDirName);
                 log.info("加载项目 {}: root={}, dbPath={}", proj.name(), proj.root(), projConfig.getDbPath());
                 projects.put(proj.name(), ProjectContext.create(projConfig));
             }
             defaultProjectName = config.getProjects().get(0).name();
             log.info("多项目模式: {} 个项目, 默认项目={}", projects.size(), defaultProjectName);
+        } else if (config.isAutoDiscover()) {
+            // 自动发现多模块模式
+            String dataDirName = config.getDataDir().getFileName().toString();
+            java.util.List<Path> modules = ModuleDiscovery.discover(config);
+            for (int i = 0; i < modules.size(); i++) {
+                Path modulePath = modules.get(i);
+                String name = modulePath.equals(config.getProjectRoot()) ? "root" : modulePath.getFileName().toString();
+                Config projConfig = createProjectConfig(modulePath, dataDirName);
+                log.info("自动发现模块 {}: root={}", name, modulePath);
+                projects.put(name, ProjectContext.create(projConfig));
+            }
+            defaultProjectName = projects.keySet().iterator().next();
+            log.info("自动发现模式: {} 个模块, 默认模块={}", projects.size(), defaultProjectName);
         } else {
             // 单项目模式（向后兼容）
             String name = "default";
@@ -65,8 +75,93 @@ public class McpServer {
             log.info("单项目模式: projectRoot={}", config.getProjectRoot());
         }
 
+        // 初始化文件监听器
+        initFileWatchers();
+
         this.dataIn = new DataInputStream(System.in);
         this.writer = new BufferedWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 为每个项目创建文件监听器
+     */
+    private void initFileWatchers() {
+        if (!config.isWatchEnabled()) return;
+
+        for (var entry : projects.entrySet()) {
+            String projectName = entry.getKey();
+            ProjectContext ctx = entry.getValue();
+            Indexer indexer = new Indexer(ctx.config(), ctx.storage(), ctx.dbManager());
+
+            if ("event".equals(config.getWatchMode())) {
+                EventFileWatcher watcher = new EventFileWatcher(ctx.config(), indexer, ctx.storage());
+                fileWatchers.put(projectName, watcher);
+            } else {
+                PollingFileWatcher watcher = new PollingFileWatcher(ctx.config(), indexer, ctx.storage());
+                fileWatchers.put(projectName, watcher);
+            }
+        }
+    }
+
+    /**
+     * 为子模块创建 Config
+     */
+    private Config createProjectConfig(Path modulePath, String dataDirName) {
+        Config projConfig = new Config();
+        projConfig.setProjectRoot(modulePath);
+        projConfig.setDataDir(modulePath.resolve(dataDirName));
+        projConfig.setDbName(config.getDbName());
+        projConfig.setExtractJavadoc(config.isExtractJavadoc());
+        projConfig.setFollowSymlinks(config.isFollowSymlinks());
+        projConfig.setMaxFileSizeKB(config.getMaxFileSizeKB());
+        projConfig.setIndexingThreads(config.getIndexingThreads());
+        projConfig.setWatchEnabled(config.isWatchEnabled());
+        projConfig.setWatchMode(config.getWatchMode());
+        projConfig.setWatchIntervalSeconds(config.getWatchIntervalSeconds());
+        projConfig.setWatchDebounceMs(config.getWatchDebounceMs());
+        projConfig.setWatchExclude(config.getWatchExclude());
+        return projConfig;
+    }
+
+    /**
+     * 启动所有文件监听器
+     */
+    private void startFileWatchers() {
+        for (var entry : fileWatchers.entrySet()) {
+            String projectName = entry.getKey();
+            Object watcher = entry.getValue();
+            try {
+                if (watcher instanceof EventFileWatcher efw) {
+                    efw.start();
+                } else if (watcher instanceof PollingFileWatcher pfw) {
+                    pfw.start();
+                }
+                log.info("项目 '{}' 文件监听器已启动", projectName);
+            } catch (Exception e) {
+                log.warn("项目 '{}' 文件监听器启动失败: {}", projectName, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 停止所有文件监听器
+     */
+    private void stopFileWatchers() {
+        for (var entry : fileWatchers.entrySet()) {
+            String projectName = entry.getKey();
+            Object watcher = entry.getValue();
+            try {
+                if (watcher instanceof EventFileWatcher efw) {
+                    efw.stop();
+                } else if (watcher instanceof PollingFileWatcher pfw) {
+                    pfw.stop();
+                }
+                log.info("项目 '{}' 文件监听器已停止", projectName);
+            } catch (Exception e) {
+                log.warn("项目 '{}' 文件监听器停止失败: {}", projectName, e.getMessage());
+            }
+        }
+        fileWatchers.clear();
     }
 
     /**
@@ -75,6 +170,9 @@ public class McpServer {
     public void start() {
         try {
             log.info("MCP Server 已启动, {} 个项目已加载", projects.size());
+
+            // 启动文件监听器
+            startFileWatchers();
 
             // 主消息循环：按 MCP 规范读取 Content-Length 帧
             while (running) {
@@ -195,7 +293,7 @@ public class McpServer {
 
         JsonObject serverInfo = new JsonObject();
         serverInfo.addProperty("name", "java-code-indexer");
-        serverInfo.addProperty("version", "1.7.0");
+        serverInfo.addProperty("version", com.sodlinken.jindexer.util.Version.getVersion());
         result.add("serverInfo", serverInfo);
 
         JsonObject capabilities = new JsonObject();
@@ -239,6 +337,16 @@ public class McpServer {
                 "list_projects",
                 "列出所有已索引的项目及其状态",
                 listProjectsParams
+            ));
+        }
+
+        // 1b. list_modules（autoDiscover 模式下可用）
+        if (config.isAutoDiscover()) {
+            Map<String, Object> listModulesParams = new LinkedHashMap<>();
+            toolsArray.add(createTool(
+                "list_modules",
+                "列出自动发现的所有子模块（Maven/Gradle 多模块项目）",
+                listModulesParams
             ));
         }
 
@@ -468,6 +576,7 @@ public class McpServer {
         try {
             var result = switch (toolName) {
                 case "list_projects" -> callListProjects(arguments);
+                case "list_modules" -> callListModules(arguments);
                 case "find_symbol" -> callFindSymbol(arguments);
                 case "find_references" -> callFindReferences(arguments);
                 case "get_call_graph" -> callGetCallGraph(arguments);
@@ -517,6 +626,20 @@ public class McpServer {
             "projects", projectList,
             "total", projectList.size(),
             "default_project", defaultProjectName
+        );
+    }
+
+    private Map<String, Object> callListModules(JsonObject args) {
+        List<Map<String, Object>> moduleList = new ArrayList<>();
+        for (var entry : projects.entrySet()) {
+            Map<String, Object> info = new LinkedHashMap<>();
+            info.put("name", entry.getKey());
+            info.put("path", entry.getValue().config().getProjectRoot().toString());
+            moduleList.add(info);
+        }
+        return Map.of(
+            "modules", moduleList,
+            "total", moduleList.size()
         );
     }
 
@@ -1239,7 +1362,7 @@ public class McpServer {
     private Map<String, Object> callHealth(JsonObject args) {
         Map<String, Object> health = new LinkedHashMap<>();
         health.put("status", "ok");
-        health.put("version", "1.7.0");
+        health.put("version", com.sodlinken.jindexer.util.Version.getVersion());
         health.put("projects", projects.size());
         health.put("uptime_ms", System.currentTimeMillis() - startTime);
 
@@ -1404,6 +1527,10 @@ public class McpServer {
 
     public void shutdown() {
         running = false;
+
+        // 停止文件监听器
+        stopFileWatchers();
+
         executor.shutdown();
         try {
             if (!executor.awaitTermination(120, java.util.concurrent.TimeUnit.SECONDS)) {
