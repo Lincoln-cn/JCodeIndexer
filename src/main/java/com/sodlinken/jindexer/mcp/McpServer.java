@@ -539,6 +539,15 @@ public class McpServer {
             "【配置绑定追踪】查找配置项绑定的类（@ConfigurationProperties）。使用场景：查看某个配置前缀绑定到哪些类。",
             configBindingsParams));
 
+        // 27. complexity_report（复杂度分析）
+        Map<String, Object> complexityParams = new LinkedHashMap<>();
+        complexityParams.put("class_name", Map.of("type", "string", "description", "类名或限定名（如 UserService）"));
+        complexityParams.put("file_path", Map.of("type", "string", "description", "文件路径（可选，与 class_name 二选一）"));
+        if (multiProject) complexityParams.put("project", projectParam);
+        toolsArray.add(createTool("complexity_report",
+            "【代码度量】获取类或文件的复杂度报告：圈复杂度、认知复杂度。使用场景：评估代码复杂度，识别高风险方法。",
+            complexityParams));
+
         // 22. find_related_tests（查找与源代码相关的测试类）
         Map<String, Object> relatedTestsParams = new LinkedHashMap<>();
         relatedTestsParams.put("class_name", Map.of("type", "string", "description", "源类名或限定名（如 UserService, OrderController）"));
@@ -616,6 +625,7 @@ public class McpServer {
                 case "get_bean_dependents" -> callGetBeanDependents(arguments);
                 case "find_bean_sources" -> callFindBeanSources(arguments);
                 case "find_config_bindings" -> callFindConfigBindings(arguments);
+                case "complexity_report" -> callComplexityReport(arguments);
                 case "find_related_tests" -> callFindRelatedTests(arguments);
                 case "reindex" -> callReindex(arguments);
                 case "index_status" -> callIndexStatus(arguments);
@@ -1232,6 +1242,37 @@ public class McpServer {
                 "line", b.startLine()
             )).toList(),
             "total", bindings.size()
+        );
+    }
+
+    private Map<String, Object> callComplexityReport(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String className = args.has("class_name") ? args.get("class_name").getAsString() : null;
+        String filePath = args.has("file_path") ? args.get("file_path").getAsString() : null;
+
+        // 获取方法列表
+        var symbols = className != null
+            ? storage.searchSymbolsByName(className, 100)
+            : storage.findSymbolsByFile(filePath);
+
+        List<Map<String, Object>> methods = new ArrayList<>();
+        for (var sym : symbols) {
+            if (sym.kind() == Symbol.SymbolKind.METHOD) {
+                methods.add(Map.of(
+                    "name", sym.name(),
+                    "qualified_name", sym.qualifiedName(),
+                    "file", sym.filePath(),
+                    "line", sym.startLine()
+                ));
+            }
+        }
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "class_name", className != null ? className : "all",
+            "methods", methods,
+            "total", methods.size()
         );
     }
 
