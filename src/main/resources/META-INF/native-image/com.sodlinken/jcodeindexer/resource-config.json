@@ -7,7 +7,9 @@
       {"pattern": "META-INF/services/.*"},
       {"pattern": "META-INF/native-image/.*"},
       {"pattern": "org/slf4j/impl/StaticLoggerBinder.class"},
-      {"pattern": "org/slf4j/LoggerFactory.class"}
+      {"pattern": "org/slf4j/LoggerFactory.class"},
+      {"pattern": "org/xerial/sqlite-jdbc/.*"},
+      {"pattern": "org/sqlite/.*"}
     ]
   }
 }
