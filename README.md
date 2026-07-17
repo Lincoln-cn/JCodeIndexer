@@ -52,7 +52,7 @@ Supports 30+ annotations across major frameworks:
 | Async | `@EnableAsync`, `@Async` |
 | Scheduling | `@EnableScheduling`, `@Scheduled` |
 
-### Spring Ecosystem Support (v1.6.0+)
+### Spring Ecosystem Support
 
 | Feature | Description |
 |---------|-------------|
@@ -356,8 +356,8 @@ Thirteen core tables:
 - **`api_routes`** — Spring Boot API route mappings (URL → Controller)
 - **`bean_dependencies`** — Spring Bean injection relationships
 - **`test_mappings`** — Test class to source class associations
-- **`index_metadata`** — Index metadata (v1.7.0+)
-- **`code_metrics`** — Code metrics information (v1.7.0+)
+- **`index_metadata`** — Index metadata (key-value store)
+- **`code_metrics`** — Code metrics (LOC, method/field counts, complexity)
 
 Plus FTS5 full-text search tables (`symbols_fts`, `chunks_fts`) with auto-sync triggers.
 

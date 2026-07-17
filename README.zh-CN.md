@@ -50,7 +50,7 @@ AI 编程助手探索一个不熟悉的 Java 项目时：
 | Async | `@EnableAsync`, `@Async` |
 | Scheduling | `@EnableScheduling`, `@Scheduled` |
 
-### Spring 生态支持（v1.6.0+）
+### Spring 生态支持
 
 | 功能 | 说明 |
 |------|------|
@@ -334,8 +334,8 @@ CLI 参数 → 环境变量 → 配置文件 → 默认值
 - **`api_routes`** — Spring Boot API 路由映射（URL → Controller）
 - **`bean_dependencies`** — Spring Bean 注入关系
 - **`test_mappings`** — 测试类与源类的关联映射
-- **`index_metadata`** — 索引元数据（v1.7.0+）
-- **`code_metrics`** — 代码度量信息（v1.7.0+）
+- **`index_metadata`** — 索引元数据（键值存储）
+- **`code_metrics`** — 代码度量（代码行数、方法/字段数量、复杂度）
 
 另外还有 FTS5 全文搜索表（`symbols_fts`、`chunks_fts`），通过触发器自动同步。
 
