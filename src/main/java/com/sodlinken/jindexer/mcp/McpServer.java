@@ -556,6 +556,15 @@ public class McpServer {
             "【死代码检测】检测潜在死代码（未被引用的 public 方法/类）。使用场景：代码维护，识别可删除的代码。",
             deadCodeParams));
 
+        // 29. find_circular_deps（循环依赖检测）
+        Map<String, Object> circularDepsParams = new LinkedHashMap<>();
+        circularDepsParams.put("class_name", Map.of("type", "string", "description", "起始类名（可选）"));
+        circularDepsParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) circularDepsParams.put("project", projectParam);
+        toolsArray.add(createTool("find_circular_deps",
+            "【循环依赖检测】检测类间的循环依赖。使用场景：架构分析，识别循环引用。",
+            circularDepsParams));
+
         // 22. find_related_tests（查找与源代码相关的测试类）
         Map<String, Object> relatedTestsParams = new LinkedHashMap<>();
         relatedTestsParams.put("class_name", Map.of("type", "string", "description", "源类名或限定名（如 UserService, OrderController）"));
@@ -635,6 +644,7 @@ public class McpServer {
                 case "find_config_bindings" -> callFindConfigBindings(arguments);
                 case "complexity_report" -> callComplexityReport(arguments);
                 case "detect_dead_code" -> callDetectDeadCode(arguments);
+                case "find_circular_deps" -> callFindCircularDeps(arguments);
                 case "find_related_tests" -> callFindRelatedTests(arguments);
                 case "reindex" -> callReindex(arguments);
                 case "index_status" -> callIndexStatus(arguments);
@@ -1304,6 +1314,27 @@ public class McpServer {
                 "reason", d.reason()
             )).toList(),
             "total", deadCode.size()
+        );
+    }
+
+    private Map<String, Object> callFindCircularDeps(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        var detector = new com.sodlinken.jindexer.analysis.CircularDependencyDetector(ctx.dbManager());
+
+        String className = args.has("class_name") ? args.get("class_name").getAsString() : null;
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 20;
+
+        var cycles = className != null
+            ? detector.detectForClass(className)
+            : detector.detect();
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "cycles", cycles.stream().limit(limit).map(c -> Map.of(
+                "path", c.path(),
+                "length", c.path().size()
+            )).toList(),
+            "total", cycles.size()
         );
     }
 
