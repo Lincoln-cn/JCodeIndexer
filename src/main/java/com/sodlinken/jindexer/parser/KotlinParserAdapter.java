@@ -2,6 +2,8 @@ package com.sodlinken.jindexer.parser;
 
 import com.sodlinken.jindexer.config.Config;
 import com.sodlinken.jindexer.model.Annotation;
+import com.sodlinken.jindexer.model.ApiRoute;
+import com.sodlinken.jindexer.model.BeanDependency;
 import com.sodlinken.jindexer.model.Call;
 import com.sodlinken.jindexer.model.Reference;
 import com.sodlinken.jindexer.model.Symbol;
@@ -112,6 +114,13 @@ public class KotlinParserAdapter {
 
             // 提取注解（简单正则匹配）
             extractAnnotations(content, symbols, annotations);
+
+            // 提取 Spring 路由和 Bean 依赖
+            List<ApiRoute> apiRoutes = extractApiRoutes(content, relativePath);
+            List<BeanDependency> beanDependencies = extractBeanDependencies(content, relativePath);
+
+            return new ParseResult(symbols, references, calls, annotations, errors,
+                apiRoutes, beanDependencies, List.of(), List.of(), List.of());
 
         } catch (IOException e) {
             log.warn("读取 Kotlin 文件失败: {}", relativePath, e);
@@ -386,6 +395,82 @@ public class KotlinParserAdapter {
                  "override", "open", "abstract", "data", "sealed", "suspend" -> true;
             default -> false;
         };
+    }
+
+    /**
+     * 提取 Kotlin Spring API 路由
+     */
+    private List<ApiRoute> extractApiRoutes(String content, String relativePath) {
+        List<ApiRoute> routes = new ArrayList<>();
+
+        // 类级别 @RequestMapping
+        String classBasePath = "";
+        Matcher classMatcher = Pattern.compile(
+            "@RequestMapping\\s*\\(?(?:.*?(?:value|path)\\s*=\\s*)?\"([^\"]+)\".*?\\)?"
+        ).matcher(content);
+        if (classMatcher.find()) {
+            classBasePath = classMatcher.group(1);
+        }
+
+        // 方法级别路由注解
+        String[] httpMappings = {"GetMapping:GET", "PostMapping:POST", "PutMapping:PUT",
+                                "DeleteMapping:DELETE", "PatchMapping:PATCH"};
+
+        for (String mapping : httpMappings) {
+            String[] parts = mapping.split(":");
+            String annotationName = parts[0];
+            String httpMethod = parts[1];
+
+            Pattern methodPattern = Pattern.compile(
+                "@(" + annotationName + ")\\s*\\(?(?:.*?(?:value|path)\\s*=\\s*)?\"([^\"]+)\".*?\\)?"
+            );
+            Matcher methodMatcher = methodPattern.matcher(content);
+            while (methodMatcher.find()) {
+                String methodPath = methodMatcher.group(2);
+                String fullPath = classBasePath + methodPath;
+                if (fullPath.isEmpty()) fullPath = "/";
+                int lineNum = findLineNumber(content, methodMatcher.group(0));
+                routes.add(new ApiRoute(0, 0, httpMethod, fullPath, classBasePath, methodPath, relativePath, lineNum));
+            }
+        }
+        return routes;
+    }
+
+    /**
+     * 提取 Kotlin Bean 依赖
+     */
+    private List<BeanDependency> extractBeanDependencies(String content, String relativePath) {
+        List<BeanDependency> deps = new ArrayList<>();
+
+        // 字段注入: @Autowired private val service: UserService
+        Pattern fieldPattern = Pattern.compile(
+            "@(Autowired|Inject|Resource)\\s+(?:private\\s+)?(?:val|var)\\s+(\\w+)\\s*:\\s*(\\w+)"
+        );
+        Matcher fieldMatcher = fieldPattern.matcher(content);
+        while (fieldMatcher.find()) {
+            int lineNum = findLineNumber(content, fieldMatcher.group(0));
+            deps.add(new BeanDependency(0, 0, null, fieldMatcher.group(3),
+                "FIELD", fieldMatcher.group(2), relativePath, lineNum));
+        }
+
+        // 构造函数注入
+        Pattern ctorPattern = Pattern.compile(
+            "(?:@(?:Autowired|Inject)\\s+)?constructor\\s*\\(([^)]+)\\)"
+        );
+        Matcher ctorMatcher = ctorPattern.matcher(content);
+        if (ctorMatcher.find()) {
+            String params = ctorMatcher.group(1);
+            for (String param : params.split(",")) {
+                param = param.trim();
+                Matcher paramMatcher = Pattern.compile("(?:val|var)\\s+(\\w+)\\s*:\\s*(\\w+)").matcher(param);
+                if (paramMatcher.find()) {
+                    int lineNum = findLineNumber(content, ctorMatcher.group(0));
+                    deps.add(new BeanDependency(0, 0, null, paramMatcher.group(2),
+                        "CONSTRUCTOR", paramMatcher.group(1), relativePath, lineNum));
+                }
+            }
+        }
+        return deps;
     }
 
     /**
