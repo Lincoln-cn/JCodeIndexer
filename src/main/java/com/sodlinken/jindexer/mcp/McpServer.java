@@ -521,6 +521,15 @@ public class McpServer {
             "【反向依赖分析】查看哪些 Bean 注入了指定的 Bean。使用场景：修改某个 Bean 前评估影响范围。",
             beanDependentsParams));
 
+        // 21b. find_bean_sources（查找 Bean 定义来源）
+        Map<String, Object> beanSourcesParams = new LinkedHashMap<>();
+        beanSourcesParams.put("type_name", Map.of("type", "string", "description", "Bean 类型名（如 UserService）"));
+        beanSourcesParams.put("limit", Map.of("type", "integer", "description", "最大返回数", "default", 20));
+        if (multiProject) beanSourcesParams.put("project", projectParam);
+        toolsArray.add(createTool("find_bean_sources",
+            "【Bean 来源追踪】查找 Bean 的定义位置（@Bean 方法 or @Component 类）。使用场景：追踪 Bean 从哪里创建。",
+            beanSourcesParams));
+
         // 22. find_related_tests（查找与源代码相关的测试类）
         Map<String, Object> relatedTestsParams = new LinkedHashMap<>();
         relatedTestsParams.put("class_name", Map.of("type", "string", "description", "源类名或限定名（如 UserService, OrderController）"));
@@ -596,6 +605,7 @@ public class McpServer {
                 case "get_type_hierarchy" -> callGetTypeHierarchy(arguments);
                 case "get_bean_dependencies" -> callGetBeanDependencies(arguments);
                 case "get_bean_dependents" -> callGetBeanDependents(arguments);
+                case "find_bean_sources" -> callFindBeanSources(arguments);
                 case "find_related_tests" -> callFindRelatedTests(arguments);
                 case "reindex" -> callReindex(arguments);
                 case "index_status" -> callIndexStatus(arguments);
@@ -1169,6 +1179,27 @@ public class McpServer {
                 );
             }).toList(),
             "total", dependents.size()
+        );
+    }
+
+    private Map<String, Object> callFindBeanSources(JsonObject args) throws Exception {
+        ProjectContext ctx = resolveProject(args);
+        StorageService storage = ctx.storage();
+        String typeName = args.get("type_name").getAsString();
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 20;
+
+        var sources = storage.findBeanSourcesByType(typeName);
+
+        return Map.of(
+            "project", resolveProjectName(args),
+            "type_name", typeName,
+            "sources", sources.stream().map(s -> Map.of(
+                "bean_name", s.beanName(),
+                "source_type", s.sourceType(),
+                "file", s.filePath(),
+                "line", s.startLine()
+            )).toList(),
+            "total", sources.size()
         );
     }
 
