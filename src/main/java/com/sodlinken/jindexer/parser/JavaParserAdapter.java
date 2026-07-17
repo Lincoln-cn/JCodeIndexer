@@ -313,7 +313,7 @@ public class JavaParserAdapter {
         List<TestMapping> testMappings = extractTestMappings(relativePath, symbols);
 
         return new ParseResult(symbols, references, calls, annotations, errors,
-            apiRoutes, beanDependencies, testMappings, List.of());
+            apiRoutes, beanDependencies, testMappings, List.of(), List.of());
     }
 
     private String buildClassSignature(ClassOrInterfaceDeclaration clazz) {

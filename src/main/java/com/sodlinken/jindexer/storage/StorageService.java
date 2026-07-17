@@ -974,6 +974,71 @@ public class StorageService implements AutoCloseable {
         deleteDependenciesByFile(filePath);
         deleteFileMeta(filePath);
         deleteAnnotationsByFile(filePath);
+        deleteBeanSourcesByFile(filePath);
+    }
+
+    // ==================== BeanSources ====================
+
+    public void insertBeanSources(List<BeanSource> sources) throws SQLException {
+        String sql = "INSERT INTO bean_sources (symbol_id, return_type, bean_name, source_type, file_path, start_line) VALUES (?, ?, ?, ?, ?, ?)";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            for (BeanSource s : sources) {
+                ps.setLong(1, s.symbolId());
+                ps.setString(2, s.returnType());
+                ps.setString(3, s.beanName());
+                ps.setString(4, s.sourceType());
+                ps.setString(5, s.filePath());
+                ps.setInt(6, s.startLine());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    public void deleteBeanSourcesByFile(String filePath) throws SQLException {
+        String sql = "DELETE FROM bean_sources WHERE file_path = ?";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, filePath);
+            ps.executeUpdate();
+        }
+    }
+
+    public List<BeanSource> findBeanSourcesByType(String typeName) throws SQLException {
+        String sql = "SELECT id, symbol_id, return_type, bean_name, source_type, file_path, start_line FROM bean_sources WHERE return_type = ?";
+        List<BeanSource> list = new ArrayList<>();
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, typeName);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new BeanSource(
+                        rs.getLong("id"), rs.getLong("symbol_id"),
+                        rs.getString("return_type"), rs.getString("bean_name"),
+                        rs.getString("source_type"), rs.getString("file_path"),
+                        rs.getInt("start_line")
+                    ));
+                }
+            }
+        }
+        return list;
+    }
+
+    public List<BeanSource> findBeanSourcesByName(String beanName) throws SQLException {
+        String sql = "SELECT id, symbol_id, return_type, bean_name, source_type, file_path, start_line FROM bean_sources WHERE bean_name = ?";
+        List<BeanSource> list = new ArrayList<>();
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, beanName);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new BeanSource(
+                        rs.getLong("id"), rs.getLong("symbol_id"),
+                        rs.getString("return_type"), rs.getString("bean_name"),
+                        rs.getString("source_type"), rs.getString("file_path"),
+                        rs.getInt("start_line")
+                    ));
+                }
+            }
+        }
+        return list;
     }
 
     // ==================== Annotations ====================

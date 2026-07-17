@@ -122,7 +122,7 @@ public class KotlinParserAdapter {
         }
 
         return new ParseResult(symbols, references, calls, annotations, errors,
-            List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of());
     }
 
     /**

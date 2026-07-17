@@ -466,4 +466,17 @@ public final class Schema {
             "CREATE INDEX IF NOT EXISTS idx_code_metrics_file ON code_metrics(file_path)"
         };
     }
+
+    /**
+     * 获取迁移语句（v1.8.0: 添加 bean_sources、config_bindings 表，code_metrics 新增复杂度字段）
+     */
+    public static String[] migrationV1_8_0() {
+        return new String[] {
+            "CREATE TABLE IF NOT EXISTS bean_sources (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol_id INTEGER, return_type TEXT NOT NULL, bean_name TEXT NOT NULL, source_type TEXT NOT NULL, file_path TEXT NOT NULL, start_line INTEGER, FOREIGN KEY (symbol_id) REFERENCES symbols(id) ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS idx_bean_sources_name ON bean_sources(bean_name)",
+            "CREATE INDEX IF NOT EXISTS idx_bean_sources_type ON bean_sources(return_type)",
+            "ALTER TABLE code_metrics ADD COLUMN cyclomatic_complexity INTEGER DEFAULT 0",
+            "ALTER TABLE code_metrics ADD COLUMN cognitive_complexity INTEGER DEFAULT 0"
+        };
+    }
 }

@@ -16,10 +16,11 @@ public record ParseResult(
     List<ApiRoute> apiRoutes,
     List<BeanDependency> beanDependencies,
     List<TestMapping> testMappings,
-    List<AnnotationRef> annotationRefs
+    List<AnnotationRef> annotationRefs,
+    List<BeanSource> beanSources
 ) {
     public static ParseResult empty() {
         return new ParseResult(List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of());
     }
 }
