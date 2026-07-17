@@ -240,7 +240,7 @@ public class CliMain {
         System.out.println("Exporting index to: " + exportFile);
 
         var data = storage.exportAll();
-        data.put("version", "0.7.2");
+        data.put("version", "1.7.0");
         data.put("exported_at", java.time.Instant.now().toString());
         data.put("project_root", config.getProjectRoot().toString());
 
@@ -290,11 +290,11 @@ public class CliMain {
     }
 
     private static void printVersion() {
-        System.out.println("java-code-indexer v0.7.2");
+        System.out.println("java-code-indexer v1.7.0");
     }
 
     private static void printUsage() {
-        System.out.println("java-code-indexer v0.7.2");
+        System.out.println("java-code-indexer v1.7.0");
         System.out.println();
         System.out.println("Usage: java -jar jindexer.jar [options]");
         System.out.println();

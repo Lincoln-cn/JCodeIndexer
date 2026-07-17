@@ -3,7 +3,7 @@
   "mcp": {
     "java-code-indexer": {
       "type": "local",
-      "command": ["/usr/lib/jvm/java-21-openjdk-amd64/bin/java", "-jar", "/home/ubuntu/jairouter/mcp/java-code-indexer/target/java-code-indexer-1.5.0.jar", "--project-root", "/home/ubuntu/jairouter/modelrouter"]
+      "command": ["C:\\Users\\Administrator\\scoop\\apps\\temurin-jdk\\current\\bin\\java.exe", "-jar", "D:\\Project\\java-code-indexer\\target\\java-code-indexer-1.7.0.jar", "--project-root", "D:\\Project\\java-code-indexer"]
     }
   }
 }
