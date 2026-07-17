@@ -478,13 +478,31 @@ jobs:
           在项目根目录创建 `.jindexer/config.yaml`（可选）：
 
           ```yaml
+          # === 项目路径 ===
+          project_root: /path/to/project
           data_dir: .jindexer
-          indexing:
-            threads: 4
-            max_file_size_kb: 512
-          watch:
-            enabled: true
-            interval: 5
+
+          # === 索引设置 ===
+          indexing_threads: 4
+          max_file_size_kb: 512
+          extract_javadoc: false
+          follow_symlinks: false
+
+          # === 存储设置 ===
+          db_name: index.db
+
+          # === 日志设置 ===
+          log_level: INFO
+          verbose: false
+
+          # === 文件监听 ===
+          watch_enabled: true
+          watch_interval_seconds: 5
+          watch_exclude:
+            - "**/target/**"
+            - "**/build/**"
+            - "**/.git/**"
+            - "**/node_modules/**"
           ```
 
           HEREDOC
