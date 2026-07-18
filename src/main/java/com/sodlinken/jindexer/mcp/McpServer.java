@@ -880,7 +880,8 @@ public class McpServer {
                     "file", calleeFile != null ? calleeFile : "unknown",
                     "line", c.callerLine()
                 );
-            }).toList()
+            }).toList(),
+            "total", callers.size() + callees.size()
         );
     }
 
@@ -946,7 +947,8 @@ public class McpServer {
                 "type", c.type().name(),
                 "name", c.name() != null ? c.name() : "",
                 "line", c.startLine()
-            )).toList()
+            )).toList(),
+            "total", symbols.size() + chunks.size()
         );
     }
 
@@ -1625,7 +1627,8 @@ public class McpServer {
                 "file", sym.filePath(),
                 "lines_of_code", linesOfCode,
                 "method_count", methodCount,
-                "field_count", fieldCount
+                "field_count", fieldCount,
+                "total", methodCount + fieldCount
             );
         }
 
