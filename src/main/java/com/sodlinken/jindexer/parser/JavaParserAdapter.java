@@ -41,22 +41,36 @@ public class JavaParserAdapter {
     private static final Logger log = LoggerFactory.getLogger(JavaParserAdapter.class);
     private final Config config;
 
-    private static final JavaParser PARSER;
-    private static final SymbolResolver SYMBOL_RESOLVER;
-
-    static {
-        CombinedTypeSolver typeSolver = new CombinedTypeSolver();
-        typeSolver.add(new ReflectionTypeSolver());
-        SYMBOL_RESOLVER = new JavaSymbolSolver(typeSolver);
-
-        ParserConfiguration config = new ParserConfiguration()
-            .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21)
-            .setSymbolResolver(SYMBOL_RESOLVER);
-        PARSER = new JavaParser(config);
-    }
+    private static volatile JavaParser parser;
 
     public JavaParserAdapter(Config config) {
         this.config = config;
+        // 延迟初始化，使用实例的 config 来获取项目路径
+    }
+
+    private synchronized JavaParser getParser() {
+        if (parser == null) {
+            CombinedTypeSolver typeSolver = new CombinedTypeSolver();
+            typeSolver.add(new ReflectionTypeSolver());
+
+            // 添加项目源码路径到 TypeSolver
+            Path projectRoot = config.getProjectRoot();
+            Path srcMainJava = projectRoot.resolve("src/main/java");
+            if (Files.isDirectory(srcMainJava)) {
+                try {
+                    typeSolver.add(new JavaParserTypeSolver(srcMainJava));
+                } catch (Exception e) {
+                    log.debug("无法添加源码路径到 TypeSolver: {}", srcMainJava, e);
+                }
+            }
+
+            SymbolResolver symbolResolver = new JavaSymbolSolver(typeSolver);
+            ParserConfiguration parserConfig = new ParserConfiguration()
+                .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21)
+                .setSymbolResolver(symbolResolver);
+            parser = new JavaParser(parserConfig);
+        }
+        return parser;
     }
 
     /**
@@ -74,7 +88,7 @@ public class JavaParserAdapter {
 
         try {
             String content = Files.readString(filePath);
-            CompilationUnit cu = PARSER.parse(content)
+            CompilationUnit cu = getParser().parse(content)
                 .getResult()
                 .orElseThrow(() -> new RuntimeException("解析失败: " + relativePath));
 
@@ -436,40 +450,58 @@ public class JavaParserAdapter {
             return null;
         }
 
+        // 过滤掉不合法的方法名
+        if (!Character.isJavaIdentifierStart(methodName.charAt(0))) {
+            return null;
+        }
+
         try {
             // 尝试使用 SymbolResolver 解析方法的完全限定名
-            var resolvedMethod = callExpr.resolve();
-            if (resolvedMethod != null) {
-                String qualifiedName = resolvedMethod.getQualifiedName();
+            var resolved = callExpr.resolve();
+            if (resolved != null) {
+                String qualifiedName = resolved.getQualifiedName();
                 // 过滤掉 JDK 内部方法
-                if (qualifiedName.startsWith("java.") || qualifiedName.startsWith("javax.") ||
-                    qualifiedName.startsWith("kotlin.") || qualifiedName.startsWith("scala.")) {
+                if (isJdkMethod(qualifiedName)) {
                     return null;
                 }
                 return qualifiedName;
             }
         } catch (Exception e) {
-            // 解析失败，回退到简单名称
+            // 解析失败，尝试其他方式
         }
 
         // 回退：尝试简单的名称拼接
         Optional<Expression> scope = callExpr.getScope();
         if (scope.isPresent()) {
             Expression scopeExpr = scope.get();
-            String scopeStr = scopeExpr.toString();
 
-            // 过滤掉不合法的 scope
+            // 过滤掉不合法的 scope 类型
             if (scopeExpr instanceof StringLiteralExpr ||
                 scopeExpr instanceof IntegerLiteralExpr ||
                 scopeExpr instanceof LongLiteralExpr ||
                 scopeExpr instanceof DoubleLiteralExpr ||
+                scopeExpr instanceof BooleanLiteralExpr ||
+                scopeExpr instanceof CharLiteralExpr ||
                 scopeExpr instanceof MethodReferenceExpr ||
-                scopeExpr instanceof LambdaExpr) {
+                scopeExpr instanceof LambdaExpr ||
+                scopeExpr instanceof ObjectCreationExpr ||
+                scopeExpr instanceof ArrayCreationExpr) {
                 return null;
             }
+
+            String scopeStr = scopeExpr.toString();
+
+            // 过滤掉包含括号的表达式（链式调用中间结果）
             if (scopeStr.contains("(") || scopeStr.contains("[")) {
                 return null;
             }
+
+            // 过滤掉包含特殊字符的表达式
+            if (scopeStr.contains("\"") || scopeStr.contains("'") ||
+                scopeStr.contains("->") || scopeStr.contains("::")) {
+                return null;
+            }
+
             if (!isValidScope(scopeStr)) {
                 return null;
             }
@@ -477,6 +509,23 @@ public class JavaParserAdapter {
         }
 
         return methodName;
+    }
+
+    private boolean isJdkMethod(String qualifiedName) {
+        return qualifiedName.startsWith("java.") ||
+               qualifiedName.startsWith("javax.") ||
+               qualifiedName.startsWith("jdk.") ||
+               qualifiedName.startsWith("sun.") ||
+               qualifiedName.startsWith("com.sun.") ||
+               qualifiedName.startsWith("kotlin.") ||
+               qualifiedName.startsWith("kotlinx.") ||
+               qualifiedName.startsWith("scala.") ||
+               qualifiedName.startsWith("scala.meta.") ||
+               qualifiedName.startsWith("org.slf4j.") ||
+               qualifiedName.startsWith("org.slf4j.event.") ||
+               qualifiedName.startsWith("org.slf4j.helpers.") ||
+               qualifiedName.startsWith("org.slf4j.spi.") ||
+               qualifiedName.startsWith("ch.qos.logback.");
     }
 
     private boolean isValidScope(String scopeStr) {
