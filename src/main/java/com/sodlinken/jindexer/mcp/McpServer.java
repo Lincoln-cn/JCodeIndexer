@@ -881,6 +881,8 @@ public class McpServer {
             }).toList(),
             "callees", callees.stream().map(c -> {
                 String calleeFile = c.calleeFile();
+                String calleeType = null;
+
                 if (calleeFile == null || calleeFile.isEmpty() || "unknown".equals(calleeFile)) {
                     // 尝试完全限定名查找
                     try {
@@ -911,12 +913,21 @@ public class McpServer {
                             }
                         }
                     } catch (Exception e) {}
+
+                    // 如果仍然 unknown，提供类型提示
+                    if (calleeFile == null || calleeFile.isEmpty() || "unknown".equals(calleeFile)) {
+                        calleeType = inferCalleeType(c.calleeMethod());
+                    }
                 }
-                return Map.of(
-                    "method", c.calleeMethod(),
-                    "file", calleeFile != null ? calleeFile : "unknown",
-                    "line", c.callerLine()
-                );
+
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("method", c.calleeMethod());
+                result.put("file", calleeFile != null ? calleeFile : "unknown");
+                result.put("line", c.callerLine());
+                if (calleeType != null) {
+                    result.put("type", calleeType);
+                }
+                return result;
             }).toList(),
             "total", callers.size() + callees.size()
         );
@@ -929,6 +940,86 @@ public class McpServer {
         if (name == null) return "";
         int lastDot = name.lastIndexOf('.');
         return lastDot >= 0 ? name.substring(lastDot + 1) : name;
+    }
+
+    /**
+     * 推断 callee 的类型，为大模型提供更友好的提示
+     */
+    private String inferCalleeType(String calleeMethod) {
+        if (calleeMethod == null || calleeMethod.isEmpty()) {
+            return "UNKNOWN";
+        }
+
+        // JDK 标准库方法
+        if (calleeMethod.startsWith("java.") || calleeMethod.startsWith("javax.") ||
+            calleeMethod.startsWith("jdk.")) {
+            return "JDK";
+        }
+
+        // Kotlin/Scala 标准库
+        if (calleeMethod.startsWith("kotlin.") || calleeMethod.startsWith("kotlinx.") ||
+            calleeMethod.startsWith("scala.") || calleeMethod.startsWith("scala.meta.")) {
+            return "KOTLIN_SCALA_STD";
+        }
+
+        // 日志框架
+        if (calleeMethod.startsWith("org.slf4j.") || calleeMethod.startsWith("ch.qos.logback.") ||
+            calleeMethod.startsWith("org.apache.logging.")) {
+            return "LOGGING";
+        }
+
+        // Lambda 表达式（包含 ->）
+        if (calleeMethod.contains("->") || calleeMethod.contains("lambda")) {
+            return "LAMBDA";
+        }
+
+        // Stream 操作
+        if (calleeMethod.contains("stream()") || calleeMethod.contains(".filter") ||
+            calleeMethod.contains(".map") || calleeMethod.contains(".flatMap") ||
+            calleeMethod.contains(".reduce") || calleeMethod.contains(".collect") ||
+            calleeMethod.contains(".forEach")) {
+            return "STREAM";
+        }
+
+        // Optional 操作
+        if (calleeMethod.contains("Optional") || calleeMethod.contains(".isPresent") ||
+            calleeMethod.contains(".get()") || calleeMethod.contains(".orElse")) {
+            return "OPTIONAL";
+        }
+
+        // 字符串字面量方法
+        if (calleeMethod.startsWith("\"") || calleeMethod.contains("\".")) {
+            return "STRING_LITERAL";
+        }
+
+        // 数字字面量方法
+        if (calleeMethod.matches("\\d+\\..*")) {
+            return "NUMBER_LITERAL";
+        }
+
+        // 链式调用（包含多个点号和括号）
+        if (calleeMethod.contains("(") && calleeMethod.contains(").")) {
+            return "CHAIN_CALL";
+        }
+
+        // 变量方法调用（单个标识符.方法名）
+        if (calleeMethod.matches("[a-zA-Z_][a-zA-Z0-9_]*\\.[a-zA-Z_][a-zA-Z0-9_]*")) {
+            return "VARIABLE_METHOD";
+        }
+
+        // 静态方法调用（类名.方法名）
+        if (calleeMethod.matches("[A-Z][a-zA-Z0-9_]*\\.[a-zA-Z_][a-zA-Z0-9_]*")) {
+            return "STATIC_METHOD";
+        }
+
+        // Record 访问器（以 .name(), .kind() 等结尾）
+        if (calleeMethod.endsWith(".name()") || calleeMethod.endsWith(".kind()") ||
+            calleeMethod.endsWith(".filePath()") || calleeMethod.endsWith(".startLine()") ||
+            calleeMethod.endsWith(".endLine()") || calleeMethod.endsWith(".id()")) {
+            return "RECORD_ACCESSOR";
+        }
+
+        return "UNKNOWN";
     }
 
     private Map<String, Object> callSearchCode(JsonObject args) throws Exception {
