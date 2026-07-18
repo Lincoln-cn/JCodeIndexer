@@ -1369,36 +1369,12 @@ public class McpServer {
         List<Map<String, Object>> methods = new ArrayList<>();
         for (var sym : symbols) {
             if (sym.kind() == Symbol.SymbolKind.METHOD) {
-                Map<String, Object> methodInfo = new LinkedHashMap<>();
-                methodInfo.put("name", sym.name());
-                methodInfo.put("qualified_name", sym.qualifiedName());
-                methodInfo.put("file", sym.filePath());
-                methodInfo.put("line", sym.startLine());
-
-                // 尝试计算复杂度
-                try {
-                    Path projectRoot = ctx.config().getProjectRoot();
-                    Path sourceFile = projectRoot.resolve(sym.filePath());
-                    if (sym.filePath() != null && Files.exists(sourceFile)) {
-                        String content = Files.readString(sourceFile);
-                        // 使用正则匹配方法签名计算复杂度
-                        String methodPattern = sym.name() + "\\s*\\(";
-                        int startIdx = content.indexOf(sym.name());
-                        if (startIdx >= 0) {
-                            // 简化实现：基于方法体的控制流语句计算
-                            int endIdx = findMethodEnd(content, startIdx);
-                            if (endIdx > startIdx) {
-                                String methodBody = content.substring(startIdx, endIdx);
-                                int cc = calculateSimpleCC(methodBody);
-                                methodInfo.put("cyclomatic_complexity", cc);
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    // 复杂度计算失败，忽略
-                }
-
-                methods.add(methodInfo);
+                methods.add(Map.of(
+                    "name", sym.name(),
+                    "qualified_name", sym.qualifiedName(),
+                    "file", sym.filePath(),
+                    "line", sym.startLine()
+                ));
             }
         }
 
@@ -1408,45 +1384,6 @@ public class McpServer {
             "methods", methods,
             "total", methods.size()
         );
-    }
-
-    private int findMethodEnd(String content, int startIdx) {
-        int braceCount = 0;
-        boolean foundFirstBrace = false;
-        for (int i = startIdx; i < content.length(); i++) {
-            char c = content.charAt(i);
-            if (c == '{') {
-                braceCount++;
-                foundFirstBrace = true;
-            } else if (c == '}') {
-                braceCount--;
-                if (foundFirstBrace && braceCount == 0) {
-                    return i;
-                }
-            }
-        }
-        return content.length();
-    }
-
-    private int calculateSimpleCC(String methodBody) {
-        int cc = 1;
-        cc += countOccurrences(methodBody, "\\bif\\s*\\(");
-        cc += countOccurrences(methodBody, "\\belse\\s+if\\s*\\(");
-        cc += countOccurrences(methodBody, "\\bfor\\s*\\(");
-        cc += countOccurrences(methodBody, "\\bwhile\\s*\\(");
-        cc += countOccurrences(methodBody, "\\bdo\\s*\\{");
-        cc += countOccurrences(methodBody, "\\bcatch\\s*\\(");
-        cc += countOccurrences(methodBody, "\\bcase\\s+");
-        cc += countOccurrences(methodBody, "&&");
-        cc += countOccurrences(methodBody, "\\|\\|");
-        return cc;
-    }
-
-    private int countOccurrences(String text, String regex) {
-        int count = 0;
-        var matcher = java.util.regex.Pattern.compile(regex).matcher(text);
-        while (matcher.find()) count++;
-        return count;
     }
 
     private Map<String, Object> callDetectDeadCode(JsonObject args) throws Exception {
