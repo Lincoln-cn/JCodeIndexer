@@ -1378,10 +1378,16 @@ public class McpServer {
             }
         }
 
-        // 获取代码度量（包含复杂度）
-        Optional<CodeMetrics> metrics = className != null
-            ? storage.findCodeMetricsByFile(filePath != null ? filePath : "", className)
-            : Optional.empty();
+        // 获取代码度量（包含复杂度）- 通过类名查找
+        Optional<CodeMetrics> metrics = Optional.empty();
+        if (className != null) {
+            // 先查找符号获取文件路径
+            var symOpt = storage.searchSymbolsByName(className, 1);
+            if (!symOpt.isEmpty()) {
+                String actualFilePath = symOpt.getFirst().filePath();
+                metrics = storage.findCodeMetricsByFile(actualFilePath, className);
+            }
+        }
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("project", resolveProjectName(args));
