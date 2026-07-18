@@ -421,9 +421,34 @@ public class JavaParserAdapter {
         // 尝试解析调用的完整名称
         Optional<Expression> scope = callExpr.getScope();
         if (scope.isPresent()) {
-            return scope.get().toString() + "." + callExpr.getNameAsString();
+            String scopeStr = scope.get().toString();
+            String methodName = callExpr.getNameAsString();
+            // 过滤掉不合法的 callee 名称（如表达式、字符串等）
+            if (scopeStr.contains("\"") || scopeStr.contains("'") || scopeStr.contains("(") || scopeStr.contains("[") || scopeStr.contains(")") || scopeStr.contains("]")) {
+                return null;
+            }
+            // 过滤掉 lambda 表达式和复杂的链式调用
+            if (scopeStr.contains("->") || scopeStr.contains("::")) {
+                return null;
+            }
+            return scopeStr + "." + methodName;
         }
-        return callExpr.getNameAsString();
+        // 对于没有 scope 的调用，只返回方法名
+        String methodName = callExpr.getNameAsString();
+        // 过滤掉常见关键字和保留字
+        if (isKeyword(methodName)) {
+            return null;
+        }
+        return methodName;
+    }
+
+    private boolean isKeyword(String name) {
+        return "if".equals(name) || "for".equals(name) || "while".equals(name) ||
+               "switch".equals(name) || "catch".equals(name) || "try".equals(name) ||
+               "return".equals(name) || "throw".equals(name) || "new".equals(name) ||
+               "super".equals(name) || "this".equals(name) || "class".equals(name) ||
+               "interface".equals(name) || "enum".equals(name) || "void".equals(name) ||
+               "null".equals(name) || "true".equals(name) || "false".equals(name);
     }
 
     /**
