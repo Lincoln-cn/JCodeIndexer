@@ -422,16 +422,33 @@ public class JavaParserAdapter {
         Optional<Expression> scope = callExpr.getScope();
         String methodName = callExpr.getNameAsString();
 
+        // 过滤掉常见关键字和保留字
+        if (isKeyword(methodName)) {
+            return null;
+        }
+
         if (scope.isPresent()) {
-            String scopeStr = scope.get().toString();
+            Expression scopeExpr = scope.get();
+            String scopeStr = scopeExpr.toString();
 
             // 过滤掉字符串字面量的方法调用（如 "string".replace()）
-            if (scopeStr.startsWith("\"") || scopeStr.startsWith("'")) {
+            if (scopeExpr instanceof StringLiteralExpr) {
                 return null;
             }
 
             // 过滤掉数字字面量的方法调用
-            if (scopeStr.matches("\\d+")) {
+            if (scopeExpr instanceof IntegerLiteralExpr || scopeExpr instanceof LongLiteralExpr ||
+                scopeExpr instanceof DoubleLiteralExpr) {
+                return null;
+            }
+
+            // 过滤掉方法引用（如 ClassName::method）
+            if (scopeExpr instanceof MethodReferenceExpr) {
+                return null;
+            }
+
+            // 过滤掉 lambda 表达式
+            if (scopeExpr instanceof LambdaExpr) {
                 return null;
             }
 
@@ -440,38 +457,65 @@ public class JavaParserAdapter {
                 return null;
             }
 
-            // 过滤掉 lambda 表达式和方法引用
-            if (scopeStr.contains("->") || scopeStr.contains("::")) {
+            // 过滤掉变量访问（如 ctx.storage, args.get）
+            // 只保留标识符或简单的对象访问
+            if (!isValidScope(scopeStr)) {
                 return null;
-            }
-
-            // 过滤掉复杂的链式调用（包含括号的）
-            if (scopeStr.contains("(") && !scopeStr.endsWith(")")) {
-                return null;
-            }
-
-            // 对于链式调用，只取最后一部分
-            // 例如 db.getConnection().prepareStatement → prepareStatement
-            // 但 storage.findSymbolByQualifiedName → storage.findSymbolByQualifiedName
-            int lastDot = scopeStr.lastIndexOf('.');
-            if (lastDot > 0) {
-                String lastPart = scopeStr.substring(lastDot + 1);
-                // 如果最后一部分是方法调用结果（如 getConnection()），则跳过
-                if (lastPart.endsWith(")")) {
-                    return null;
-                }
             }
 
             return scopeStr + "." + methodName;
         }
 
         // 对于没有 scope 的调用，只返回方法名
-        // 过滤掉常见关键字和保留字
-        if (isKeyword(methodName)) {
-            return null;
+        return methodName;
+    }
+
+    private boolean isValidScope(String scopeStr) {
+        // 空字符串
+        if (scopeStr == null || scopeStr.isEmpty()) {
+            return false;
         }
 
-        return methodName;
+        // 只包含标识符和点号（如 storage, storage.service）
+        // 不包含括号、方括号、引号等特殊字符
+        if (scopeStr.contains("(") || scopeStr.contains(")") ||
+            scopeStr.contains("[") || scopeStr.contains("]") ||
+            scopeStr.contains("\"") || scopeStr.contains("'") ||
+            scopeStr.contains("{") || scopeStr.contains("}")) {
+            return false;
+        }
+
+        // 检查是否为有效的 Java 标识符或标识符链
+        String[] parts = scopeStr.split("\\.");
+        for (String part : parts) {
+            if (!part.isEmpty() && !isValidJavaIdentifier(part)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean isValidJavaIdentifier(String name) {
+        if (name == null || name.isEmpty()) {
+            return false;
+        }
+
+        // 第一个字符必须是字母、下划线或美元符号
+        char first = name.charAt(0);
+        if (!Character.isLetter(first) && first != '_' && first != '$') {
+            return false;
+        }
+
+        // 其余字符必须是字母、数字、下划线或美元符号
+        for (int i = 1; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (!Character.isLetterOrDigit(c) && c != '_' && c != '$') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private boolean isKeyword(String name) {
