@@ -862,11 +862,25 @@ public class McpServer {
                 "file", c.callerFile(),
                 "line", c.callerLine()
             )).toList(),
-            "callees", callees.stream().map(c -> Map.of(
-                "method", c.calleeMethod(),
-                "file", c.calleeFile() != null ? c.calleeFile() : "unknown",
-                "line", c.callerLine()
-            )).toList()
+            "callees", callees.stream().map(c -> {
+                // 如果 calleeFile 为空，通过 calleeMethod 查找 symbol 获取文件路径
+                String calleeFile = c.calleeFile();
+                if (calleeFile == null || calleeFile.isEmpty()) {
+                    try {
+                        var calleeSymbol = storage.findSymbolByQualifiedName(c.calleeMethod());
+                        if (calleeSymbol.isPresent()) {
+                            calleeFile = calleeSymbol.get().filePath();
+                        }
+                    } catch (Exception e) {
+                        // 查找失败时保持 unknown
+                    }
+                }
+                return Map.of(
+                    "method", c.calleeMethod(),
+                    "file", calleeFile != null ? calleeFile : "unknown",
+                    "line", c.callerLine()
+                );
+            }).toList()
         );
     }
 
