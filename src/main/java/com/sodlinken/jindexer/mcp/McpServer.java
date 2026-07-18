@@ -1378,12 +1378,27 @@ public class McpServer {
             }
         }
 
-        return Map.of(
-            "project", resolveProjectName(args),
-            "class_name", className != null ? className : "all",
-            "methods", methods,
-            "total", methods.size()
-        );
+        // 获取代码度量（包含复杂度）
+        Optional<CodeMetrics> metrics = className != null
+            ? storage.findCodeMetricsByFile(filePath != null ? filePath : "", className)
+            : Optional.empty();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("project", resolveProjectName(args));
+        result.put("class_name", className != null ? className : "all");
+        result.put("methods", methods);
+        result.put("total", methods.size());
+
+        // 添加复杂度信息
+        if (metrics.isPresent()) {
+            var m = metrics.get();
+            result.put("lines_of_code", m.linesOfCode());
+            result.put("method_count", m.methodCount());
+            result.put("field_count", m.fieldCount());
+            result.put("complexity_estimate", m.complexityEstimate());
+        }
+
+        return result;
     }
 
     private Map<String, Object> callDetectDeadCode(JsonObject args) throws Exception {

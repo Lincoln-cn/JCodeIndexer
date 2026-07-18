@@ -1,5 +1,6 @@
 package com.sodlinken.jindexer.indexer;
 
+import com.sodlinken.jindexer.analysis.ComplexityAnalyzer;
 import com.sodlinken.jindexer.chunker.Chunker;
 import com.sodlinken.jindexer.config.Config;
 import com.sodlinken.jindexer.model.*;
@@ -475,6 +476,61 @@ public class Indexer {
         log.debug("Java diff 完成: {} (符号: {}增{}删, 块: {}增{}删)",
             relativePath, symbolsToInsert.size(), symbolIdsToDelete.size(),
             chunksToInsert.size(), chunkIdsToDelete.size());
+
+        // --- 代码度量：计算复杂度并存储 ---
+        calculateAndStoreCodeMetrics(relativePath, filePath, newSymbols, newChunks);
+    }
+
+    /**
+     * 计算并存储代码度量（圈复杂度）
+     */
+    private void calculateAndStoreCodeMetrics(String relativePath, Path filePath,
+                                               List<Symbol> symbols, List<Chunk> chunks) {
+        try {
+            String content = Files.readString(filePath);
+
+            // 按类分组计算
+            Map<String, List<Chunk>> classChunks = new LinkedHashMap<>();
+            for (Chunk c : chunks) {
+                if (c.className() != null && !c.className().isEmpty()) {
+                    classChunks.computeIfAbsent(c.className(), k -> new ArrayList<>()).add(c);
+                }
+            }
+
+            for (Symbol sym : symbols) {
+                if (sym.kind() != Symbol.SymbolKind.CLASS) continue;
+
+                String className = sym.name();
+                List<Chunk> classChunkList = classChunks.getOrDefault(className, List.of());
+
+                int methodCount = 0;
+                int fieldCount = 0;
+                int linesOfCode = 0;
+                int totalComplexity = 0;
+
+                for (Chunk c : classChunkList) {
+                    if (c.type().name().equals("METHOD")) {
+                        methodCount++;
+                        linesOfCode += c.endLine() - c.startLine() + 1;
+                        // 计算该方法的圈复杂度
+                        int cc = ComplexityAnalyzer.calculateCyclomaticComplexity(content, c.startLine(), c.endLine());
+                        totalComplexity += cc;
+                    } else if (c.type().name().equals("FIELD")) {
+                        fieldCount++;
+                    }
+                }
+
+                CodeMetrics metrics = new CodeMetrics(
+                    0, null, relativePath, className,
+                    "", // packageName
+                    linesOfCode, methodCount, fieldCount,
+                    totalComplexity, System.currentTimeMillis()
+                );
+                storage.upsertCodeMetrics(metrics);
+            }
+        } catch (Exception e) {
+            log.debug("计算代码度量失败: {}", relativePath, e);
+        }
     }
 
     /**

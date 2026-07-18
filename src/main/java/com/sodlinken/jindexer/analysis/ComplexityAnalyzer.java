@@ -16,9 +16,27 @@ public final class ComplexityAnalyzer {
      */
     public static int calculateCyclomaticComplexity(MethodDeclaration method) {
         String code = method.toString();
-        int cc = 1;
+        return calculateCyclomaticComplexity(code);
+    }
 
-        // 统计决策点
+    /**
+     * 从源码字符串计算圈复杂度（指定行范围）
+     * 用于索引时预计算
+     */
+    public static int calculateCyclomaticComplexity(String content, int startLine, int endLine) {
+        String[] lines = content.split("\n");
+        StringBuilder methodBody = new StringBuilder();
+        for (int i = startLine - 1; i < Math.min(endLine, lines.length); i++) {
+            methodBody.append(lines[i]).append("\n");
+        }
+        return calculateCyclomaticComplexity(methodBody.toString());
+    }
+
+    /**
+     * 从代码字符串计算圈复杂度
+     */
+    public static int calculateCyclomaticComplexity(String code) {
+        int cc = 1;
         cc += countPattern(code, "\\bif\\s*\\(");
         cc += countPattern(code, "\\belse\\s+if\\s*\\(");
         cc += countPattern(code, "\\bfor\\s*\\(");
@@ -29,7 +47,6 @@ public final class ComplexityAnalyzer {
         cc += countPattern(code, "\\?\\s*[^?]");
         cc += countPattern(code, "&&");
         cc += countPattern(code, "\\|\\|");
-
         return cc;
     }
 
@@ -39,9 +56,14 @@ public final class ComplexityAnalyzer {
      */
     public static int calculateCognitiveComplexity(MethodDeclaration method) {
         String code = method.toString();
-        int complexity = 0;
+        return calculateCognitiveComplexity(code);
+    }
 
-        // 简化实现：统计控制流结构
+    /**
+     * 从代码字符串计算认知复杂度
+     */
+    public static int calculateCognitiveComplexity(String code) {
+        int complexity = 0;
         complexity += countPattern(code, "\\bif\\s*\\(");
         complexity += countPattern(code, "\\belse\\s+if\\s*\\(");
         complexity += countPattern(code, "\\bfor\\s*\\(");
@@ -49,11 +71,8 @@ public final class ComplexityAnalyzer {
         complexity += countPattern(code, "\\bdo\\s*\\{");
         complexity += countPattern(code, "\\bcatch\\s*\\(");
         complexity += countPattern(code, "\\bswitch\\s*\\(");
-
-        // 嵌套增加额外分（简化：每个控制流结构 +1）
         complexity += countPattern(code, "&&");
         complexity += countPattern(code, "\\|\\|");
-
         return complexity;
     }
 
