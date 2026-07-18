@@ -854,26 +854,63 @@ public class McpServer {
             ? calls.stream().filter(c -> c.callerMethod().equals(methodName)).toList()
             : List.<Call>of();
 
+        // 查找当前方法所在的文件
+        String callerFilePath = null;
+        var callerSymbol = storage.findSymbolByQualifiedName(methodName);
+        if (callerSymbol.isPresent()) {
+            callerFilePath = callerSymbol.get().filePath();
+        }
+        final String finalCallerFile = callerFilePath;
+
         return Map.of(
             "project", resolveProjectName(args),
             "method", methodName,
-            "callers", callers.stream().map(c -> Map.of(
-                "method", c.callerMethod(),
-                "file", c.callerFile(),
-                "line", c.callerLine()
-            )).toList(),
+            "callers", callers.stream().map(c -> {
+                String file = c.callerFile();
+                if (file == null || file.isEmpty() || "unknown".equals(file)) {
+                    try {
+                        var sym = storage.findSymbolByQualifiedName(c.callerMethod());
+                        if (sym.isPresent()) file = sym.get().filePath();
+                    } catch (Exception e) {}
+                }
+                return Map.of(
+                    "method", c.callerMethod(),
+                    "file", file != null ? file : "unknown",
+                    "line", c.callerLine()
+                );
+            }).toList(),
             "callees", callees.stream().map(c -> {
-                // 如果 calleeFile 为空，通过 calleeMethod 查找 symbol 获取文件路径
                 String calleeFile = c.calleeFile();
-                if (calleeFile == null || calleeFile.isEmpty()) {
+                if (calleeFile == null || calleeFile.isEmpty() || "unknown".equals(calleeFile)) {
+                    // 尝试完全限定名查找
                     try {
                         var calleeSymbol = storage.findSymbolByQualifiedName(c.calleeMethod());
                         if (calleeSymbol.isPresent()) {
                             calleeFile = calleeSymbol.get().filePath();
+                        } else {
+                            // 尝试在当前文件的同级符号中查找
+                            String calleeName = extractSimpleName(c.calleeMethod());
+                            if (finalCallerFile != null) {
+                                var sameFileSymbols = storage.findSymbolsByFile(finalCallerFile);
+                                for (var s : sameFileSymbols) {
+                                    if (s.name().equals(calleeName) && s.kind() == Symbol.SymbolKind.METHOD) {
+                                        calleeFile = s.filePath();
+                                        break;
+                                    }
+                                }
+                            }
+                            // 如果还没找到，搜索项目中同名方法
+                            if (calleeFile == null || calleeFile.isEmpty() || "unknown".equals(calleeFile)) {
+                                var candidates = storage.searchSymbolsByName(calleeName, 5);
+                                for (var s : candidates) {
+                                    if (s.name().equals(calleeName) && s.kind() == Symbol.SymbolKind.METHOD) {
+                                        calleeFile = s.filePath();
+                                        break;
+                                    }
+                                }
+                            }
                         }
-                    } catch (Exception e) {
-                        // 查找失败时保持 unknown
-                    }
+                    } catch (Exception e) {}
                 }
                 return Map.of(
                     "method", c.calleeMethod(),
@@ -883,6 +920,15 @@ public class McpServer {
             }).toList(),
             "total", callers.size() + callees.size()
         );
+    }
+
+    /**
+     * 从完全限定名或短名称中提取简单方法名
+     */
+    private String extractSimpleName(String name) {
+        if (name == null) return "";
+        int lastDot = name.lastIndexOf('.');
+        return lastDot >= 0 ? name.substring(lastDot + 1) : name;
     }
 
     private Map<String, Object> callSearchCode(JsonObject args) throws Exception {
