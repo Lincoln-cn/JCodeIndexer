@@ -420,25 +420,57 @@ public class JavaParserAdapter {
     private String resolveCallName(MethodCallExpr callExpr) {
         // 尝试解析调用的完整名称
         Optional<Expression> scope = callExpr.getScope();
+        String methodName = callExpr.getNameAsString();
+
         if (scope.isPresent()) {
             String scopeStr = scope.get().toString();
-            String methodName = callExpr.getNameAsString();
-            // 过滤掉不合法的 callee 名称（如表达式、字符串等）
-            if (scopeStr.contains("\"") || scopeStr.contains("'") || scopeStr.contains("(") || scopeStr.contains("[") || scopeStr.contains(")") || scopeStr.contains("]")) {
+
+            // 过滤掉字符串字面量的方法调用（如 "string".replace()）
+            if (scopeStr.startsWith("\"") || scopeStr.startsWith("'")) {
                 return null;
             }
-            // 过滤掉 lambda 表达式和复杂的链式调用
+
+            // 过滤掉数字字面量的方法调用
+            if (scopeStr.matches("\\d+")) {
+                return null;
+            }
+
+            // 过滤掉数组/列表的方法调用（如 list.get()）
+            if (scopeStr.endsWith(")") || scopeStr.contains("[")) {
+                return null;
+            }
+
+            // 过滤掉 lambda 表达式和方法引用
             if (scopeStr.contains("->") || scopeStr.contains("::")) {
                 return null;
             }
+
+            // 过滤掉复杂的链式调用（包含括号的）
+            if (scopeStr.contains("(") && !scopeStr.endsWith(")")) {
+                return null;
+            }
+
+            // 对于链式调用，只取最后一部分
+            // 例如 db.getConnection().prepareStatement → prepareStatement
+            // 但 storage.findSymbolByQualifiedName → storage.findSymbolByQualifiedName
+            int lastDot = scopeStr.lastIndexOf('.');
+            if (lastDot > 0) {
+                String lastPart = scopeStr.substring(lastDot + 1);
+                // 如果最后一部分是方法调用结果（如 getConnection()），则跳过
+                if (lastPart.endsWith(")")) {
+                    return null;
+                }
+            }
+
             return scopeStr + "." + methodName;
         }
+
         // 对于没有 scope 的调用，只返回方法名
-        String methodName = callExpr.getNameAsString();
         // 过滤掉常见关键字和保留字
         if (isKeyword(methodName)) {
             return null;
         }
+
         return methodName;
     }
 
