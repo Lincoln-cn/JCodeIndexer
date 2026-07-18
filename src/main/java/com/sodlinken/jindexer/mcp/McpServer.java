@@ -91,7 +91,7 @@ public class McpServer {
         for (var entry : projects.entrySet()) {
             String projectName = entry.getKey();
             ProjectContext ctx = entry.getValue();
-            Indexer indexer = new Indexer(ctx.config(), ctx.storage(), ctx.dbManager());
+            Indexer indexer = ctx.indexer();
 
             if ("event".equals(config.getWatchMode())) {
                 EventFileWatcher watcher = new EventFileWatcher(ctx.config(), indexer, ctx.storage());
@@ -1449,8 +1449,7 @@ public class McpServer {
 
     private Map<String, Object> callReindex(JsonObject args) throws Exception {
         ProjectContext ctx = resolveProject(args);
-        StorageService storage = ctx.storage();
-        Indexer indexer = new Indexer(ctx.config(), storage, ctx.dbManager());
+        Indexer indexer = ctx.indexer();
 
         long startTime = System.currentTimeMillis();
         String projectName = resolveProjectName(args);
