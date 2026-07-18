@@ -902,6 +902,13 @@ public class Indexer {
             // 清理已删除的文件
             cleanupDeletedFiles(projectRoot);
 
+            // 更新索引时间戳
+            try {
+                storage.upsertIndexMetadata("last_indexed_at", String.valueOf(System.currentTimeMillis()));
+            } catch (Exception e) {
+                log.warn("更新索引时间戳失败", e);
+            }
+
             log.info("增量索引完成: {} 个文件", files.size());
         } finally {
             indexing = false;
