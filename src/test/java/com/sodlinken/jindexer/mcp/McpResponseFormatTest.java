@@ -140,18 +140,18 @@ class McpResponseFormatTest {
      * 测试 search_code 返回格式
      */
     @Test
-    void searchCodeShouldReturnTotalHits() throws Exception {
-        // search_code 返回 total_hits 而不是 total，这是正常的
+    void searchCodeShouldReturnTotal() throws Exception {
+        // search_code 返回 total 字段
         Map<String, Object> response = Map.of(
             "project", "default",
             "symbols", java.util.List.of(),
             "chunks", java.util.List.of(),
-            "total_hits", 0,
+            "total", 0,
             "query_time_ms", 0
         );
 
         // 验证返回格式
-        assertTrue(response.containsKey("total_hits"), "search_code 应返回 total_hits 字段");
+        assertTrue(response.containsKey("total"), "search_code 应返回 total 字段");
     }
 
     /**
@@ -500,13 +500,13 @@ class McpResponseFormatTest {
      * 测试 search_all_projects 返回格式
      */
     @Test
-    void searchAllProjectsShouldReturnTotalHits() throws Exception {
-        // search_all_projects 返回 total_hits 而不是 total，这是正常的
+    void searchAllProjectsShouldReturnTotal() throws Exception {
+        // search_all_projects 返回 total 字段
         Map<String, Object> response = Map.of(
             "results", java.util.List.of(),
-            "total_hits", 0
+            "total", 0
         );
 
-        assertTrue(response.containsKey("total_hits"), "search_all_projects 应返回 total_hits 字段");
+        assertTrue(response.containsKey("total"), "search_all_projects 应返回 total 字段");
     }
 }
