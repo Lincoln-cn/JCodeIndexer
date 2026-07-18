@@ -916,7 +916,7 @@ public class McpServer {
                 }
                 return chunkMap;
             }).toList(),
-            "total_hits", result.totalHits(),
+            "total", result.totalHits(),
             "query_time_ms", result.queryTimeMs()
         );
     }
@@ -1722,7 +1722,7 @@ public class McpServer {
                 chunkMap.put("line", c.startLine());
                 return chunkMap;
             }).toList());
-            projectResult.put("total_hits", result.totalHits());
+            projectResult.put("total", result.totalHits());
 
             projectResults.add(projectResult);
             totalHits += result.totalHits();
@@ -1730,7 +1730,7 @@ public class McpServer {
 
         return Map.of(
             "results", projectResults,
-            "total_hits", totalHits
+            "total", totalHits
         );
     }
 
