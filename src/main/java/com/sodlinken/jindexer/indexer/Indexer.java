@@ -325,15 +325,7 @@ public class Indexer {
             // 如果 calleeFile 为空，尝试通过 calleeMethod 查找 symbol 获取文件路径
             if (call.calleeFile() == null || call.calleeFile().isEmpty()) {
                 try {
-                    // 先尝试通过完全限定名查找
                     var calleeSymbol = storage.findSymbolByQualifiedName(call.calleeMethod());
-                    if (calleeSymbol.isEmpty()) {
-                        // 如果找不到，通过名称搜索（处理短名称情况）
-                        var symbols = storage.searchSymbolsByName(call.calleeMethod(), 1);
-                        if (!symbols.isEmpty()) {
-                            calleeSymbol = Optional.of(symbols.getFirst());
-                        }
-                    }
                     if (calleeSymbol.isPresent()) {
                         call = new Call(call.id(), call.callerMethod(), call.callerFile(),
                             call.callerLine(), call.calleeMethod(), calleeSymbol.get().filePath());

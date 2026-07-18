@@ -867,15 +867,7 @@ public class McpServer {
                 String calleeFile = c.calleeFile();
                 if (calleeFile == null || calleeFile.isEmpty()) {
                     try {
-                        // 先尝试通过完全限定名查找
                         var calleeSymbol = storage.findSymbolByQualifiedName(c.calleeMethod());
-                        if (calleeSymbol.isEmpty()) {
-                            // 如果找不到，通过名称搜索（处理短名称情况）
-                            var symbols = storage.searchSymbolsByName(c.calleeMethod(), 1);
-                            if (!symbols.isEmpty()) {
-                                calleeSymbol = Optional.of(symbols.getFirst());
-                            }
-                        }
                         if (calleeSymbol.isPresent()) {
                             calleeFile = calleeSymbol.get().filePath();
                         }

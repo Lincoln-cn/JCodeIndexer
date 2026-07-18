@@ -11,6 +11,11 @@ import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
 import com.github.javaparser.ast.nodeTypes.NodeWithJavadoc;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import com.github.javaparser.resolution.SymbolResolver;
+import com.github.javaparser.symbolsolver.JavaSymbolSolver;
+import com.github.javaparser.symbolsolver.resolution.typesolvers.CombinedTypeSolver;
+import com.github.javaparser.symbolsolver.resolution.typesolvers.JavaParserTypeSolver;
+import com.github.javaparser.symbolsolver.resolution.typesolvers.ReflectionTypeSolver;
 import com.sodlinken.jindexer.config.Config;
 import com.sodlinken.jindexer.model.Annotation;
 import com.sodlinken.jindexer.model.ApiRoute;
@@ -37,10 +42,16 @@ public class JavaParserAdapter {
     private final Config config;
 
     private static final JavaParser PARSER;
+    private static final SymbolResolver SYMBOL_RESOLVER;
 
     static {
+        CombinedTypeSolver typeSolver = new CombinedTypeSolver();
+        typeSolver.add(new ReflectionTypeSolver());
+        SYMBOL_RESOLVER = new JavaSymbolSolver(typeSolver);
+
         ParserConfiguration config = new ParserConfiguration()
-            .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21);
+            .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21)
+            .setSymbolResolver(SYMBOL_RESOLVER);
         PARSER = new JavaParser(config);
     }
 
@@ -418,8 +429,6 @@ public class JavaParserAdapter {
     }
 
     private String resolveCallName(MethodCallExpr callExpr) {
-        // 尝试解析调用的完整名称
-        Optional<Expression> scope = callExpr.getScope();
         String methodName = callExpr.getNameAsString();
 
         // 过滤掉常见关键字和保留字
@@ -427,46 +436,46 @@ public class JavaParserAdapter {
             return null;
         }
 
+        try {
+            // 尝试使用 SymbolResolver 解析方法的完全限定名
+            var resolvedMethod = callExpr.resolve();
+            if (resolvedMethod != null) {
+                String qualifiedName = resolvedMethod.getQualifiedName();
+                // 过滤掉 JDK 内部方法
+                if (qualifiedName.startsWith("java.") || qualifiedName.startsWith("javax.") ||
+                    qualifiedName.startsWith("kotlin.") || qualifiedName.startsWith("scala.")) {
+                    return null;
+                }
+                return qualifiedName;
+            }
+        } catch (Exception e) {
+            // 解析失败，回退到简单名称
+        }
+
+        // 回退：尝试简单的名称拼接
+        Optional<Expression> scope = callExpr.getScope();
         if (scope.isPresent()) {
             Expression scopeExpr = scope.get();
             String scopeStr = scopeExpr.toString();
 
-            // 过滤掉字符串字面量的方法调用（如 "string".replace()）
-            if (scopeExpr instanceof StringLiteralExpr) {
+            // 过滤掉不合法的 scope
+            if (scopeExpr instanceof StringLiteralExpr ||
+                scopeExpr instanceof IntegerLiteralExpr ||
+                scopeExpr instanceof LongLiteralExpr ||
+                scopeExpr instanceof DoubleLiteralExpr ||
+                scopeExpr instanceof MethodReferenceExpr ||
+                scopeExpr instanceof LambdaExpr) {
                 return null;
             }
-
-            // 过滤掉数字字面量的方法调用
-            if (scopeExpr instanceof IntegerLiteralExpr || scopeExpr instanceof LongLiteralExpr ||
-                scopeExpr instanceof DoubleLiteralExpr) {
+            if (scopeStr.contains("(") || scopeStr.contains("[")) {
                 return null;
             }
-
-            // 过滤掉方法引用（如 ClassName::method）
-            if (scopeExpr instanceof MethodReferenceExpr) {
-                return null;
-            }
-
-            // 过滤掉 lambda 表达式
-            if (scopeExpr instanceof LambdaExpr) {
-                return null;
-            }
-
-            // 过滤掉数组/列表的方法调用（如 list.get()）
-            if (scopeStr.endsWith(")") || scopeStr.contains("[")) {
-                return null;
-            }
-
-            // 过滤掉变量访问（如 ctx.storage, args.get）
-            // 只保留标识符或简单的对象访问
             if (!isValidScope(scopeStr)) {
                 return null;
             }
-
             return scopeStr + "." + methodName;
         }
 
-        // 对于没有 scope 的调用，只返回方法名
         return methodName;
     }
 
