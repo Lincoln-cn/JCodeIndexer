@@ -310,23 +310,32 @@ public class Indexer {
         storage.deleteCallsByFile(relativePath);
 
         // 解析引用中的类型名，查找对应的 symbol_id
+        int refCount = 0;
         for (Reference ref : parsed.references()) {
             String refName = extractReferenceName(ref.context());
             if (refName != null) {
                 // 先尝试完全限定名查找
                 long symbolId = storage.findSymbolIdByQualifiedName(refName);
-                // 如果找不到，尝试通过名称搜索
+                // 如果找不到，尝试通过名称搜索（精确匹配）
                 if (symbolId <= 0) {
-                    var symbols = storage.searchSymbolsByName(refName, 1);
-                    if (!symbols.isEmpty()) {
-                        symbolId = symbols.getFirst().id();
+                    var symbols = storage.searchSymbolsByName(refName, 10);
+                    // 查找精确匹配的符号
+                    for (var s : symbols) {
+                        if (s.name().equals(refName) || s.qualifiedName().equals(refName)) {
+                            symbolId = s.id();
+                            break;
+                        }
                     }
                 }
                 if (symbolId > 0) {
                     Reference resolvedRef = new Reference(0, symbolId, ref.fromFile(), ref.fromLine(), ref.context());
                     storage.insertReference(resolvedRef);
+                    refCount++;
                 }
             }
+        }
+        if (refCount > 0) {
+            log.debug("为 {} 插入了 {} 个引用", relativePath, refCount);
         }
 
         for (Call call : parsed.calls()) {
