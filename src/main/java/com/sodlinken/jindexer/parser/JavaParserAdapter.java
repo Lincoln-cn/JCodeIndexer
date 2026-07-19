@@ -18,6 +18,7 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.JavaParserTypeS
 import com.github.javaparser.symbolsolver.resolution.typesolvers.ReflectionTypeSolver;
 import com.sodlinken.jindexer.config.Config;
 import com.sodlinken.jindexer.model.Annotation;
+import com.sodlinken.jindexer.model.AnnotationRef;
 import com.sodlinken.jindexer.model.ApiRoute;
 import com.sodlinken.jindexer.model.BeanDependency;
 import com.sodlinken.jindexer.model.BeanSource;
@@ -85,6 +86,7 @@ public class JavaParserAdapter {
         List<ApiRoute> apiRoutes = new ArrayList<>();
         List<BeanDependency> beanDependencies = new ArrayList<>();
         List<BeanSource> beanSources = new ArrayList<>();
+        List<AnnotationRef> annotationRefs = new ArrayList<>();
 
         try {
             String content = Files.readString(filePath);
@@ -125,7 +127,7 @@ public class JavaParserAdapter {
                 ));
 
                 // 提取类注解
-                extractAnnotations(clazz.getAnnotations(), qualifiedName, annotations);
+                extractAnnotations(clazz.getAnnotations(), qualifiedName, Symbol.SymbolKind.CLASS, annotations, annotationRefs);
 
                 // 提取 API 路由
                 apiRoutes.addAll(extractApiRoutes(clazz, relativePath));
@@ -156,7 +158,7 @@ public class JavaParserAdapter {
                     ));
 
                     // 提取方法注解
-                    extractAnnotations(method.getAnnotations(), methodQualified, annotations);
+                    extractAnnotations(method.getAnnotations(), methodQualified, Symbol.SymbolKind.METHOD, annotations, annotationRefs);
 
                     // 提取方法内的调用关系
                     method.findAll(MethodCallExpr.class).forEach(callExpr -> {
@@ -343,7 +345,7 @@ public class JavaParserAdapter {
         List<TestMapping> testMappings = extractTestMappings(relativePath, symbols);
 
         return new ParseResult(symbols, references, calls, annotations, errors,
-            apiRoutes, beanDependencies, testMappings, List.of(), beanSources);
+            apiRoutes, beanDependencies, testMappings, annotationRefs, beanSources);
     }
 
     private String buildClassSignature(ClassOrInterfaceDeclaration clazz) {
@@ -590,7 +592,9 @@ public class JavaParserAdapter {
      */
     private void extractAnnotations(NodeList<AnnotationExpr> annotationExprs,
                                     String qualifiedName,
-                                    List<Annotation> annotations) {
+                                    Symbol.SymbolKind ownerKind,
+                                    List<Annotation> annotations,
+                                    List<AnnotationRef> annotationRefs) {
         for (AnnotationExpr annExpr : annotationExprs) {
             String annName = annExpr.getNameAsString();
             Map<String, String> attributes = new LinkedHashMap<>();
@@ -606,8 +610,12 @@ public class JavaParserAdapter {
             }
             // MarkerAnnotationExpr (@Override) has no attributes
 
-            // 使用 qualifiedName 作为 symbolId 的占位符（实际 ID 在存储时分配）
+            // 添加注解
+            int annotationIndex = annotations.size();
             annotations.add(new Annotation(0, 0, annName, attributes));
+
+            // 添加注解关联信息
+            annotationRefs.add(new AnnotationRef(annotationIndex, qualifiedName, ownerKind));
         }
     }
 
