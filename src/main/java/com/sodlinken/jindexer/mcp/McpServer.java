@@ -462,6 +462,8 @@ public class McpServer {
         Map<String, Object> callGraphParams = new LinkedHashMap<>();
         callGraphParams.put("method_name", Map.of("type", "string", "description", "方法限定名（如 com.example.Service.save）"));
         callGraphParams.put("direction", Map.of("type", "string", "description", "callers（谁调用了我）| callees（我调用了谁）| both（双向）", "default", "both"));
+        callGraphParams.put("filter", Map.of("type", "string", "description", "过滤类型: all（全部）| project（仅项目内方法）| jdk（仅JDK方法）", "default", "all"));
+        callGraphParams.put("limit", Map.of("type", "integer", "description", "最大返回数（每个方向）", "default", 50));
         if (multiProject) callGraphParams.put("project", projectParam);
         toolsArray.add(createTool("get_call_graph",
             "【调用链分析】追踪方法的调用关系：谁调用了这个方法（callers），这个方法调用了谁（callees）。使用场景：理解代码执行流程，调试时追踪调用链路。",
@@ -845,6 +847,8 @@ public class McpServer {
         StorageService storage = ctx.storage();
         String methodName = args.get("method_name").getAsString();
         String direction = args.has("direction") ? args.get("direction").getAsString() : "both";
+        String filter = args.has("filter") ? args.get("filter").getAsString() : "all";
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : 50;
 
         var calls = storage.findCallsByMethod(methodName);
         var callers = "callers".equals(direction) || "both".equals(direction)
@@ -853,6 +857,19 @@ public class McpServer {
         var callees = "callees".equals(direction) || "both".equals(direction)
             ? calls.stream().filter(c -> c.callerMethod().equals(methodName)).toList()
             : List.<Call>of();
+
+        // 应用过滤
+        if ("project".equals(filter)) {
+            callers = callers.stream().filter(c -> !isJdkMethod(c.callerMethod())).toList();
+            callees = callees.stream().filter(c -> !isJdkMethod(c.calleeMethod())).toList();
+        } else if ("jdk".equals(filter)) {
+            callers = callers.stream().filter(c -> isJdkMethod(c.callerMethod())).toList();
+            callees = callees.stream().filter(c -> isJdkMethod(c.calleeMethod())).toList();
+        }
+
+        // 应用限制
+        callers = callers.stream().limit(limit).toList();
+        callees = callees.stream().limit(limit).toList();
 
         // 查找当前方法所在的文件
         String callerFilePath = null;
@@ -865,6 +882,8 @@ public class McpServer {
         return Map.of(
             "project", resolveProjectName(args),
             "method", methodName,
+            "filter", filter,
+            "limit", limit,
             "callers", callers.stream().map(c -> {
                 String file = c.callerFile();
                 if (file == null || file.isEmpty() || "unknown".equals(file)) {
@@ -1035,6 +1054,24 @@ public class McpServer {
         }
 
         return "UNKNOWN";
+    }
+
+    /**
+     * 判断是否为 JDK 内部方法
+     */
+    private boolean isJdkMethod(String methodName) {
+        if (methodName == null) return false;
+        return methodName.startsWith("java.") ||
+               methodName.startsWith("javax.") ||
+               methodName.startsWith("jdk.") ||
+               methodName.startsWith("sun.") ||
+               methodName.startsWith("com.sun.") ||
+               methodName.startsWith("kotlin.") ||
+               methodName.startsWith("kotlinx.") ||
+               methodName.startsWith("scala.") ||
+               methodName.startsWith("scala.meta.") ||
+               methodName.startsWith("org.slf4j.") ||
+               methodName.startsWith("ch.qos.logback.");
     }
 
     private Map<String, Object> callSearchCode(JsonObject args) throws Exception {
