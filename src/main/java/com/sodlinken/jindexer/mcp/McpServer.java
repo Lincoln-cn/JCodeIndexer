@@ -982,9 +982,23 @@ public class McpServer {
         }
 
         // Optional 操作
-        if (calleeMethod.contains("Optional") || calleeMethod.contains(".isPresent") ||
-            calleeMethod.contains(".get()") || calleeMethod.contains(".orElse")) {
+        if (calleeMethod.contains("Optional") || calleeMethod.endsWith(".isPresent()") ||
+            calleeMethod.endsWith(".get()") || calleeMethod.contains(".orElse")) {
             return "OPTIONAL";
+        }
+
+        // 常见静态方法模式
+        if (calleeMethod.equals("Map.of") || calleeMethod.equals("Map.ofEntries") ||
+            calleeMethod.equals("Map.copyOf") || calleeMethod.equals("Map.entry") ||
+            calleeMethod.equals("List.of") || calleeMethod.equals("List.copyOf") ||
+            calleeMethod.equals("Set.of") || calleeMethod.equals("Set.copyOf") ||
+            calleeMethod.equals("List.of") || calleeMethod.equals("Arrays.asList") ||
+            calleeMethod.equals("Arrays.stream") || calleeMethod.equals("Collections.unmodifiableList") ||
+            calleeMethod.equals("Objects.requireNonNull") || calleeMethod.equals("Objects.equals") ||
+            calleeMethod.equals("String.format") || calleeMethod.equals("String.join") ||
+            calleeMethod.equals("Integer.parseInt") || calleeMethod.equals("Long.parseLong") ||
+            calleeMethod.equals("System.currentTimeMillis")) {
+            return "STATIC_METHOD";
         }
 
         // 字符串字面量方法
@@ -1002,21 +1016,22 @@ public class McpServer {
             return "CHAIN_CALL";
         }
 
-        // 变量方法调用（单个标识符.方法名）
-        if (calleeMethod.matches("[a-zA-Z_][a-zA-Z0-9_]*\\.[a-zA-Z_][a-zA-Z0-9_]*")) {
-            return "VARIABLE_METHOD";
+        // Record 访问器（以 .name(), .kind() 等结尾）
+        if (calleeMethod.endsWith(".name()") || calleeMethod.endsWith(".kind()") ||
+            calleeMethod.endsWith(".filePath()") || calleeMethod.endsWith(".startLine()") ||
+            calleeMethod.endsWith(".endLine()") || calleeMethod.endsWith(".id()") ||
+            calleeMethod.endsWith(".isEmpty()") || calleeMethod.endsWith(".size()")) {
+            return "RECORD_ACCESSOR";
         }
 
-        // 静态方法调用（类名.方法名）
+        // 静态方法调用（类名.方法名，类名首字母大写）
         if (calleeMethod.matches("[A-Z][a-zA-Z0-9_]*\\.[a-zA-Z_][a-zA-Z0-9_]*")) {
             return "STATIC_METHOD";
         }
 
-        // Record 访问器（以 .name(), .kind() 等结尾）
-        if (calleeMethod.endsWith(".name()") || calleeMethod.endsWith(".kind()") ||
-            calleeMethod.endsWith(".filePath()") || calleeMethod.endsWith(".startLine()") ||
-            calleeMethod.endsWith(".endLine()") || calleeMethod.endsWith(".id()")) {
-            return "RECORD_ACCESSOR";
+        // 变量方法调用（单个标识符.方法名）
+        if (calleeMethod.matches("[a-zA-Z_][a-zA-Z0-9_]*\\.[a-zA-Z_][a-zA-Z0-9_]*")) {
+            return "VARIABLE_METHOD";
         }
 
         return "UNKNOWN";
