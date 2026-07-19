@@ -1091,6 +1091,7 @@ public class McpServer {
             "chunk_count", chunks.size(),
             "symbols", symbols.stream().map(s -> Map.of(
                 "name", s.name(),
+                "qualified_name", s.qualifiedName(),
                 "kind", s.kind().name(),
                 "line", s.startLine(),
                 "signature", s.signature() != null ? s.signature() : ""
