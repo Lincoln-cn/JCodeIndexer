@@ -457,6 +457,19 @@ public class JavaParserAdapter {
             return null;
         }
 
+        // 过滤掉常见的集合/Stream/Optional 操作（中间表达式）
+        if (isCommonOperation(methodName)) {
+            // 对于这些方法，只有当 scope 是明确的类型时才保留
+            Optional<Expression> scope = callExpr.getScope();
+            if (scope.isPresent()) {
+                Expression scopeExpr = scope.get();
+                // 如果 scope 是简单变量，过滤掉
+                if (scopeExpr instanceof NameExpr) {
+                    return null;
+                }
+            }
+        }
+
         try {
             // 尝试使用 SymbolResolver 解析方法的完全限定名
             var resolved = callExpr.resolve();
@@ -511,6 +524,67 @@ public class JavaParserAdapter {
         }
 
         return methodName;
+    }
+
+    /**
+     * 判断是否为常见的集合/Stream/Optional 操作
+     */
+    private boolean isCommonOperation(String methodName) {
+        return "stream".equals(methodName) ||
+               "filter".equals(methodName) ||
+               "map".equals(methodName) ||
+               "flatMap".equals(methodName) ||
+               "reduce".equals(methodName) ||
+               "collect".equals(methodName) ||
+               "forEach".equals(methodName) ||
+               "toList".equals(methodName) ||
+               "toSet".equals(methodName) ||
+               "toMap".equals(methodName) ||
+               "sorted".equals(methodName) ||
+               "distinct".equals(methodName) ||
+               "limit".equals(methodName) ||
+               "skip".equals(methodName) ||
+               "findFirst".equals(methodName) ||
+               "findAny".equals(methodName) ||
+               "anyMatch".equals(methodName) ||
+               "allMatch".equals(methodName) ||
+               "noneMatch".equals(methodName) ||
+               "count".equals(methodName) ||
+               "isPresent".equals(methodName) ||
+               "ifPresent".equals(methodName) ||
+               "orElse".equals(methodName) ||
+               "orElseGet".equals(methodName) ||
+               "orElseThrow".equals(methodName) ||
+               "get".equals(methodName) ||
+               "isEmpty".equals(methodName) ||
+               "size".equals(methodName) ||
+               "length".equals(methodName) ||
+               "charAt".equals(methodName) ||
+               "substring".equals(methodName) ||
+               "trim".equals(methodName) ||
+               "toLowerCase".equals(methodName) ||
+               "toUpperCase".equals(methodName) ||
+               "startsWith".equals(methodName) ||
+               "endsWith".equals(methodName) ||
+               "contains".equals(methodName) ||
+               "indexOf".equals(methodName) ||
+               "lastIndexOf".equals(methodName) ||
+               "replace".equals(methodName) ||
+               "split".equals(methodName) ||
+               "join".equals(methodName) ||
+               "toString".equals(methodName) ||
+               "equals".equals(methodName) ||
+               "hashCode".equals(methodName) ||
+               "compareTo".equals(methodName) ||
+               "add".equals(methodName) ||
+               "remove".equals(methodName) ||
+               "containsKey".equals(methodName) ||
+               "containsValue".equals(methodName) ||
+               "put".equals(methodName) ||
+               "getOrDefault".equals(methodName) ||
+               "computeIfAbsent".equals(methodName) ||
+               "computeIfPresent".equals(methodName) ||
+               "merge".equals(methodName);
     }
 
     private boolean isJdkMethod(String qualifiedName) {
