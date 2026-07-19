@@ -138,9 +138,9 @@ Options:
 |------|------|
 | `find_symbol` | 按名称查找符号（类/方法/字段），支持 `*` 通配符 |
 | `find_references` | 查找符号的所有引用位置 |
-| `get_call_graph` | 方法调用图 — 调用者、被调用者、或双向 |
+| `get_call_graph` | 方法调用图 — 调用者、被调用者、或双向。支持 `filter`（all/project/jdk）和 `limit` 参数 |
 | `search_code` | 搜索符号名和代码内容（FTS5 全文搜索） |
-| `get_file_info` | 文件详情：符号、代码块、调用关系 |
+| `get_file_info` | 文件详情：符号（含 qualified_name）、代码块、调用关系 |
 | `search_config` | 搜索配置文件（YAML / Properties / .env） |
 | `find_dependencies` | 搜索项目依赖（Maven / Gradle） |
 | `health` | 服务器健康检查，返回状态和统计信息 |
@@ -167,6 +167,31 @@ Options:
 | `complexity_report` | 获取代码复杂度报告（圈复杂度、认知复杂度） |
 | `detect_dead_code` | 检测潜在死代码（未被引用的 public 方法/类） |
 | `find_circular_deps` | 检测类间的循环依赖 |
+
+### get_call_graph 参数
+
+```json
+{
+  "method_name": "com.example.Service.save",
+  "direction": "both",           // "callers" | "callees" | "both"
+  "filter": "project",           // "all" | "project" | "jdk"
+  "limit": 50                    // 每个方向的最大返回数
+}
+```
+
+### get_call_graph callee 类型推断
+
+对于无法解析的方法调用，系统会自动推断其类型并返回 `type` 字段：
+
+| type 值 | 说明 |
+|---------|------|
+| `JDK` | JDK 标准库方法 |
+| `VARIABLE_METHOD` | 变量方法调用 |
+| `STATIC_METHOD` | 静态方法调用 |
+| `OPTIONAL` | Optional 操作 |
+| `STREAM` | Stream 操作 |
+| `RECORD_ACCESSOR` | Record 访问器 |
+| `UNKNOWN` | 无法推断 |
 
 ---
 
