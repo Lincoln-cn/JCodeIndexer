@@ -313,7 +313,15 @@ public class Indexer {
         for (Reference ref : parsed.references()) {
             String refName = extractReferenceName(ref.context());
             if (refName != null) {
+                // 先尝试完全限定名查找
                 long symbolId = storage.findSymbolIdByQualifiedName(refName);
+                // 如果找不到，尝试通过名称搜索
+                if (symbolId <= 0) {
+                    var symbols = storage.searchSymbolsByName(refName, 1);
+                    if (!symbols.isEmpty()) {
+                        symbolId = symbols.getFirst().id();
+                    }
+                }
                 if (symbolId > 0) {
                     Reference resolvedRef = new Reference(0, symbolId, ref.fromFile(), ref.fromLine(), ref.context());
                     storage.insertReference(resolvedRef);
