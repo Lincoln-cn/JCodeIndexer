@@ -115,6 +115,35 @@ SQLite 数据库（WAL 模式），13 张核心表：
 ### dependencies
 项目依赖（Maven POM / Gradle）。
 
+## 数据库迁移
+
+数据库使用自动迁移机制处理 Schema 升级：
+
+### 迁移策略
+
+1. **表创建**：使用 `CREATE TABLE IF NOT EXISTS`，确保新表自动创建，已有表不受影响
+2. **字段添加**：使用 `ALTER TABLE ADD COLUMN`，已存在字段时忽略错误
+3. **完整性检查**：每次初始化执行 `PRAGMA integrity_check`
+
+### 迁移历史
+
+| 版本 | 迁移内容 |
+|------|----------|
+| v1.0.1 | 添加继承关系字段 (`super_class`, `interfaces`) |
+| v1.1.1 | 添加 Kotlin 特有字段 (`is_data_class`, `is_object` 等) |
+| v1.2.1 | 添加 Bean 依赖表 (`bean_dependencies`) |
+| v1.3.1 | 添加测试映射表 (`test_mappings`) |
+| v1.6.0 | 添加 API 路由表 (`api_routes`) |
+| v1.7.0 | 添加代码度量表 (`code_metrics`) |
+| v1.8.0 | 添加配置绑定表 (`config_bindings`) |
+
+### 数据库损坏处理
+
+当数据库连接失败时：
+1. 自动删除损坏的数据库文件
+2. 重新创建数据库连接
+3. 执行迁移创建表和字段
+
 ## 索引策略
 
 ### 增量索引流程
