@@ -173,30 +173,30 @@ When running as an MCP server, Java Code Indexer exposes these tools:
 | `detect_dead_code` | Detect potentially dead code |
 | `find_circular_deps` | Detect circular dependencies between classes |
 
-### get_call_graph 参数
+### get_call_graph Parameters
 
 ```json
 {
   "method_name": "com.example.Service.save",
   "direction": "both",           // "callers" | "callees" | "both"
   "filter": "project",           // "all" | "project" | "jdk"
-  "limit": 50                    // 每个方向的最大返回数
+  "limit": 50                    // max results per direction
 }
 ```
 
-### get_call_graph callee 类型推断
+### get_call_graph Callee Type Inference
 
-对于无法解析的方法调用，系统会自动推断其类型并返回 `type` 字段：
+For method calls that cannot be resolved, the system automatically infers the type and returns a `type` field:
 
-| type 值 | 说明 |
-|---------|------|
-| `JDK` | JDK 标准库方法 |
-| `VARIABLE_METHOD` | 变量方法调用 |
-| `STATIC_METHOD` | 静态方法调用 |
-| `OPTIONAL` | Optional 操作 |
-| `STREAM` | Stream 操作 |
-| `RECORD_ACCESSOR` | Record 访问器 |
-| `UNKNOWN` | 无法推断 |
+| Type | Description |
+|------|-------------|
+| `JDK` | JDK standard library methods |
+| `VARIABLE_METHOD` | Variable method calls |
+| `STATIC_METHOD` | Static method calls |
+| `OPTIONAL` | Optional operations |
+| `STREAM` | Stream operations |
+| `RECORD_ACCESSOR` | Record accessors |
+| `UNKNOWN` | Cannot be inferred |
 
 ---
 
