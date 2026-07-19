@@ -403,6 +403,16 @@ Thirteen core tables:
 
 Plus FTS5 full-text search tables (`symbols_fts`, `chunks_fts`) with auto-sync triggers.
 
+### Database Migration
+
+The database uses automatic migration to handle schema upgrades:
+
+- **No data loss**: Migrations use `ALTER TABLE ADD COLUMN` which preserves existing data
+- **Idempotent**: Repeated migrations are safely ignored (duplicate column errors)
+- **Automatic**: Database upgrades automatically on startup
+
+When upgrading from an older version, the database schema is automatically updated without deleting data files. If the database is corrupted, it will be automatically rebuilt.
+
 ---
 
 ## Architecture
