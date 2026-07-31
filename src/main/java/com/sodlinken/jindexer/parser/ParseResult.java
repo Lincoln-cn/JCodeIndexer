@@ -1,5 +1,6 @@
 package com.sodlinken.jindexer.parser;
 
+import com.github.javaparser.ast.CompilationUnit;
 import com.sodlinken.jindexer.model.*;
 
 import java.util.List;
@@ -17,10 +18,12 @@ public record ParseResult(
     List<BeanDependency> beanDependencies,
     List<TestMapping> testMappings,
     List<AnnotationRef> annotationRefs,
-    List<BeanSource> beanSources
+    List<BeanSource> beanSources,
+    CompilationUnit cu,
+    String[] lines
 ) {
     public static ParseResult empty() {
         return new ParseResult(List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
     }
 }

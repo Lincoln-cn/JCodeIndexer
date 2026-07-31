@@ -535,6 +535,25 @@ public class StorageService implements AutoCloseable {
         }
     }
 
+    public void insertReferences(List<Reference> refs) throws SQLException {
+        if (refs.isEmpty()) return;
+        String sql = """
+            INSERT INTO code_references (symbol_id, from_file, from_line, context)
+            VALUES (?, ?, ?, ?)
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            for (Reference ref : refs) {
+                if (ref.symbolId() <= 0) continue;
+                ps.setLong(1, ref.symbolId());
+                ps.setString(2, ref.fromFile());
+                ps.setInt(3, ref.fromLine());
+                ps.setString(4, ref.context());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
     // ==================== Calls ====================
 
     public long insertCall(Call call) throws SQLException {
@@ -594,6 +613,25 @@ public class StorageService implements AutoCloseable {
                 "DELETE FROM calls WHERE caller_file = ?")) {
             ps.setString(1, filePath);
             ps.executeUpdate();
+        }
+    }
+
+    public void insertCalls(List<Call> calls) throws SQLException {
+        if (calls.isEmpty()) return;
+        String sql = """
+            INSERT INTO calls (caller_method, caller_file, caller_line, callee_method, callee_file)
+            VALUES (?, ?, ?, ?, ?)
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            for (Call call : calls) {
+                ps.setString(1, call.callerMethod());
+                ps.setString(2, call.callerFile());
+                ps.setInt(3, call.callerLine());
+                ps.setString(4, call.calleeMethod());
+                ps.setString(5, call.calleeFile());
+                ps.addBatch();
+            }
+            ps.executeBatch();
         }
     }
 
@@ -919,19 +957,17 @@ public class StorageService implements AutoCloseable {
         }
     }
 
-    public List<FileMeta> findAllFileMeta() throws SQLException {
-        String sql = """
-            SELECT file_path, size, last_modified, sha1, symbol_count, last_indexed_at
-            FROM file_meta
-            """;
-        List<FileMeta> list = new ArrayList<>();
-        try (PreparedStatement ps = db.getConnection().prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+    public Map<String, FileMeta> findAllFileMeta() throws SQLException {
+        String sql = "SELECT file_path, size, last_modified, sha1, symbol_count, last_indexed_at FROM file_meta";
+        Map<String, FileMeta> map = new java.util.HashMap<>();
+        try (Statement stmt = db.getConnection().createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
-                list.add(mapFileMeta(rs));
+                FileMeta meta = mapFileMeta(rs);
+                map.put(meta.filePath(), meta);
             }
         }
-        return list;
+        return map;
     }
 
     public void upsertFileMeta(FileMeta meta) throws SQLException {
@@ -1238,6 +1274,34 @@ public class StorageService implements AutoCloseable {
         return s.replace("\\\"", "\"").replace("\\\\", "\\");
     }
 
+    /**
+     * 批量删除多个文件的所有关联数据（IN 子句，每张表一次 DELETE）
+     */
+    public void deleteAllByFiles(List<String> filePaths) throws SQLException {
+        if (filePaths.isEmpty()) return;
+        String inClause = buildInClause(filePaths.size());
+        String[] tables = {"code_references", "calls", "chunks", "symbols", "config_entries", "dependencies", "file_meta"};
+        String column = "file_path";
+        for (String table : tables) {
+            String sql = "DELETE FROM " + table + " WHERE " + column + " IN " + inClause;
+            try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+                for (int i = 0; i < filePaths.size(); i++) {
+                    ps.setString(i + 1, filePaths.get(i));
+                }
+                ps.executeUpdate();
+            }
+        }
+    }
+
+    private String buildInClause(int count) {
+        StringBuilder sb = new StringBuilder("(");
+        for (int i = 0; i < count; i++) {
+            if (i > 0) sb.append(",");
+            sb.append("?");
+        }
+        return sb.append(")").toString();
+    }
+
     // ==================== Diff Helpers ====================
 
     public void insertSymbols(List<Symbol> symbols) throws SQLException {
@@ -1395,31 +1459,26 @@ public class StorageService implements AutoCloseable {
     }
 
     /**
-     * 获取项目统计信息
+     * 获取项目统计信息（单条 SQL）
      */
     public int[] getProjectStats() throws SQLException {
-        int[] stats = new int[7]; // symbols, references, calls, chunks, files, configs, dependencies
-        try (Statement stmt = db.getConnection().createStatement()) {
-            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM symbols")) {
-                stats[0] = rs.next() ? rs.getInt(1) : 0;
-            }
-            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM code_references")) {
-                stats[1] = rs.next() ? rs.getInt(1) : 0;
-            }
-            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM calls")) {
-                stats[2] = rs.next() ? rs.getInt(1) : 0;
-            }
-            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM chunks")) {
-                stats[3] = rs.next() ? rs.getInt(1) : 0;
-            }
-            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM file_meta")) {
-                stats[4] = rs.next() ? rs.getInt(1) : 0;
-            }
-            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM config_entries")) {
-                stats[5] = rs.next() ? rs.getInt(1) : 0;
-            }
-            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM dependencies")) {
-                stats[6] = rs.next() ? rs.getInt(1) : 0;
+        String sql = """
+            SELECT
+              (SELECT COUNT(*) FROM symbols),
+              (SELECT COUNT(*) FROM code_references),
+              (SELECT COUNT(*) FROM calls),
+              (SELECT COUNT(*) FROM chunks),
+              (SELECT COUNT(*) FROM file_meta),
+              (SELECT COUNT(*) FROM config_entries),
+              (SELECT COUNT(*) FROM dependencies)
+            """;
+        int[] stats = new int[7];
+        try (Statement stmt = db.getConnection().createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                for (int i = 0; i < 7; i++) {
+                    stats[i] = rs.getInt(i + 1);
+                }
             }
         }
         return stats;

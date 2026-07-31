@@ -24,26 +24,40 @@ public class Chunker {
     private static final Logger log = LoggerFactory.getLogger(Chunker.class);
     private static final int MAX_CHUNK_TOKENS = 1500;
 
-    private static final JavaParser PARSER;
+    private static final ParserConfiguration PARSER_CONFIG = new ParserConfiguration()
+        .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21);
 
-    static {
-        ParserConfiguration config = new ParserConfiguration()
-            .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21);
-        PARSER = new JavaParser(config);
+    private static JavaParser newParser() {
+        return new JavaParser(PARSER_CONFIG);
     }
 
     /**
-     * 将 Java 文件切分为代码块
+     * 将 Java 文件切分为代码块（重新解析文件）
      */
     public List<Chunk> chunkFile(String relativePath, Path filePath, String packageName) {
-        List<Chunk> chunks = new ArrayList<>();
-
         try {
             String content = Files.readString(filePath);
             String[] lines = content.split("\n");
-            CompilationUnit cu = PARSER.parse(content)
+            CompilationUnit cu = newParser().parse(content)
                 .getResult()
                 .orElseThrow(() -> new RuntimeException("解析失败: " + relativePath));
+            return chunkFile(relativePath, cu, lines, packageName);
+        } catch (IOException e) {
+            log.warn("读取文件失败: {}", relativePath, e);
+            return List.of();
+        } catch (Exception e) {
+            log.warn("切片失败: {}", relativePath, e);
+            return List.of();
+        }
+    }
+
+    /**
+     * 将 Java 文件切分为代码块（复用已解析的 CompilationUnit）
+     */
+    public List<Chunk> chunkFile(String relativePath, CompilationUnit cu, String[] lines, String packageName) {
+        List<Chunk> chunks = new ArrayList<>();
+
+        try {
 
             String className = cu.findFirst(ClassOrInterfaceDeclaration.class)
                 .map(ClassOrInterfaceDeclaration::getNameAsString)
@@ -155,8 +169,6 @@ public class Chunker {
                 });
             });
 
-        } catch (IOException e) {
-            log.warn("读取文件失败: {}", relativePath, e);
         } catch (Exception e) {
             log.warn("切片失败: {}", relativePath, e);
         }

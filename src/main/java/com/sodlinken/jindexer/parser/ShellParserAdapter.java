@@ -118,7 +118,7 @@ public class ShellParserAdapter {
         }
 
         return new ParseResult(symbols, references, calls, annotations, errors,
-            apiRoutes, beanDependencies, testMappings, annotationRefs, beanSources);
+            apiRoutes, beanDependencies, testMappings, annotationRefs, beanSources, null, null);
     }
 
     private void extractShebang(String content, String relativePath, List<Symbol> symbols) {

@@ -120,7 +120,7 @@ public class KotlinParserAdapter {
             List<BeanDependency> beanDependencies = extractBeanDependencies(content, relativePath);
 
             return new ParseResult(symbols, references, calls, annotations, errors,
-                apiRoutes, beanDependencies, List.of(), List.of(), List.of());
+                apiRoutes, beanDependencies, List.of(), List.of(), List.of(), null, null);
 
         } catch (IOException e) {
             log.warn("读取 Kotlin 文件失败: {}", relativePath, e);
@@ -131,7 +131,7 @@ public class KotlinParserAdapter {
         }
 
         return new ParseResult(symbols, references, calls, annotations, errors,
-            List.of(), List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
     }
 
     /**

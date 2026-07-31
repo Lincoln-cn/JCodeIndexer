@@ -42,7 +42,14 @@ public class JavaParserAdapter {
     private static final Logger log = LoggerFactory.getLogger(JavaParserAdapter.class);
     private final Config config;
 
+    private static final ParserConfiguration PARSER_CONFIG = new ParserConfiguration()
+        .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21);
+
     private static volatile JavaParser parser;
+
+    private static JavaParser newParser() {
+        return new JavaParser(PARSER_CONFIG);
+    }
 
     public JavaParserAdapter(Config config) {
         this.config = config;
@@ -87,10 +94,13 @@ public class JavaParserAdapter {
         List<BeanDependency> beanDependencies = new ArrayList<>();
         List<BeanSource> beanSources = new ArrayList<>();
         List<AnnotationRef> annotationRefs = new ArrayList<>();
+        CompilationUnit cu = null;
+        String[] lines = null;
 
         try {
             String content = Files.readString(filePath);
-            CompilationUnit cu = getParser().parse(content)
+            lines = content.split("\n");
+            cu = newParser().parse(content)
                 .getResult()
                 .orElseThrow(() -> new RuntimeException("解析失败: " + relativePath));
 
@@ -345,7 +355,7 @@ public class JavaParserAdapter {
         List<TestMapping> testMappings = extractTestMappings(relativePath, symbols);
 
         return new ParseResult(symbols, references, calls, annotations, errors,
-            apiRoutes, beanDependencies, testMappings, annotationRefs, beanSources);
+            apiRoutes, beanDependencies, testMappings, annotationRefs, beanSources, cu, lines);
     }
 
     private String buildClassSignature(ClassOrInterfaceDeclaration clazz) {

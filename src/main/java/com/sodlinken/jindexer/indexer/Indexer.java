@@ -21,11 +21,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Optional;
 
 /**
- * 增量索引器
- * - 文件级增量：SHA-1 比对
- * - 事务保护：单文件内原子提交
- * - Virtual Threads 并行解析
- * - 支持 Java / Kotlin / YAML / Properties / .env / POM / Gradle 文件
+ * 增量索引器（两阶段架构）
+ * - Phase A: Virtual Threads 并行解析（无锁，CPU/IO 密集）
+ * - Phase B: 批量写入数据库（大事务，减少锁竞争）
+ * - 文件级增量：SHA-1 并行比对
+ * - 支持 Java / Kotlin / Scala / Shell / YAML / Properties / .env / POM / Gradle 文件
  */
 public class Indexer {
 
@@ -102,14 +102,14 @@ public class Indexer {
             log.info("扫描到 {} 个文件 (Java={}, Kotlin={}, Scala={}, Shell={}, Config={}, POM={}, Gradle={})",
                 totalFiles, javaFiles.size(), kotlinFiles.size(), scalaFiles.size(), shellFiles.size(), configFileFiles.size(), pomFiles.size(), gradleFiles.size());
 
-            // 2. 对比 SHA-1，找出需要更新的文件
+            // 2. 并行对比 SHA-1，找出需要更新的文件
             progress.onPhaseStart("比对哈希", totalFiles);
 
             List<Path> toUpdate = new ArrayList<>();
             List<String> toDelete = new ArrayList<>();
-            Map<String, String> sha1Cache = new HashMap<>(); // 缓存 SHA-1 避免重复计算
+            Map<String, String> sha1Cache = new ConcurrentHashMap<>();
 
-            Set<String> currentFiles = new HashSet<>();
+            Set<String> currentFiles = ConcurrentHashMap.newKeySet();
             List<Path> allFiles = new ArrayList<>();
             allFiles.addAll(javaFiles);
             allFiles.addAll(kotlinFiles);
@@ -119,26 +119,35 @@ public class Indexer {
             allFiles.addAll(pomFiles);
             allFiles.addAll(gradleFiles);
 
-            int fileIndex = 0;
-            for (Path file : allFiles) {
-                // 统一使用正斜杠，确保跨平台兼容
-                String relativePath = projectRoot.relativize(file).toString().replace("\\", "/");
-                currentFiles.add(relativePath);
+            // 预取所有 fileMeta（一次 SQL）
+            Map<String, FileMeta> existingMeta = storage.findAllFileMeta();
 
-                try {
-                    String sha1 = Sha1Util.compute(file);
-                    sha1Cache.put(relativePath, sha1); // 缓存 SHA-1
-                    Optional<FileMeta> existing = storage.findFileMeta(relativePath);
-
-                    if (existing.isEmpty() || !existing.get().sha1().equals(sha1)) {
-                        toUpdate.add(file);
-                    }
-                } catch (NoSuchAlgorithmException e) {
-                    log.warn("SHA-1 计算失败: {}", relativePath, e);
+            // 并行计算 SHA-1
+            AtomicInteger hashProgress = new AtomicInteger(0);
+            try (var hashExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
+                List<Future<?>> hashFutures = new ArrayList<>();
+                for (Path file : allFiles) {
+                    hashFutures.add(hashExecutor.submit(() -> {
+                        String relativePath = projectRoot.relativize(file).toString().replace("\\", "/");
+                        currentFiles.add(relativePath);
+                        try {
+                            String sha1 = Sha1Util.compute(file);
+                            sha1Cache.put(relativePath, sha1);
+                            FileMeta existing = existingMeta.get(relativePath);
+                            if (existing == null || !existing.sha1().equals(sha1)) {
+                                synchronized (toUpdate) {
+                                    toUpdate.add(file);
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.warn("SHA-1 计算失败: {}", relativePath, e);
+                        }
+                        progress.onProgress("比对哈希", hashProgress.incrementAndGet(), totalFiles);
+                    }));
                 }
-
-                fileIndex++;
-                progress.onProgress("比对哈希", fileIndex, totalFiles);
+                for (Future<?> f : hashFutures) {
+                    try { f.get(); } catch (Exception e) { log.warn("SHA-1 任务失败", e); }
+                }
             }
             progress.onPhaseEnd("比对哈希");
 
@@ -155,45 +164,66 @@ public class Indexer {
                 return null;
             });
 
-            // 4. 删除过期文件的数据
-            for (String deletedFile : toDelete) {
-                storage.deleteAllByFile(deletedFile);
-                log.debug("删除过期文件: {}", deletedFile);
+            // 4. 批量删除过期文件的数据
+            if (!toDelete.isEmpty()) {
+                storage.deleteAllByFiles(toDelete);
+                log.debug("删除过期文件: {} 个", toDelete.size());
             }
 
-            // 5. 并行解析和索引变更文件
-            progress.onPhaseStart("索引文件", toUpdate.size());
+            // 5a. 并行解析所有变更文件（纯 CPU/IO，无 DB 操作）
+            progress.onPhaseStart("解析文件", toUpdate.size());
 
             List<String> errors = Collections.synchronizedList(new ArrayList<String>());
-            AtomicInteger indexed = new AtomicInteger(0);
+            List<FileParseResult> parseResults = new ArrayList<>();
+            AtomicInteger parsed = new AtomicInteger(0);
 
-            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-                List<Future<?>> futures = new ArrayList<>();
-                Map<String, String> finalSha1Cache = sha1Cache;
-
+            try (var parseExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
+                List<Future<FileParseResult>> parseFutures = new ArrayList<>();
                 for (Path file : toUpdate) {
-                    futures.add(executor.submit(() -> {
+                    parseFutures.add(parseExecutor.submit(() -> {
+                        FileParseResult result = null;
                         try {
-                            indexFile(projectRoot, file, finalSha1Cache);
+                            result = parseFile(projectRoot, file,
+                                sha1Cache.get(projectRoot.relativize(file).toString().replace("\\", "/")));
                         } catch (Exception e) {
                             String relPath = projectRoot.relativize(file).toString();
                             errors.add(relPath + ": " + e.getMessage());
-                            log.warn("索引文件失败: {}", relPath, e);
+                            log.warn("解析文件失败: {}", relPath, e);
                         } finally {
-                            progress.onProgress("索引文件", indexed.incrementAndGet(), toUpdate.size());
+                            progress.onProgress("解析文件", parsed.incrementAndGet(), toUpdate.size());
                         }
+                        return result;
                     }));
                 }
-
-                for (Future<?> future : futures) {
+                for (Future<FileParseResult> f : parseFutures) {
                     try {
-                        future.get();
+                        FileParseResult r = f.get();
+                        if (r != null) parseResults.add(r);
                     } catch (Exception e) {
-                        log.warn("等待索引任务完成失败", e);
+                        log.warn("等待解析任务完成失败", e);
                     }
                 }
             }
-            progress.onPhaseEnd("索引文件");
+            progress.onPhaseEnd("解析文件");
+
+            // 5b. 批量写入数据库（单线程，大事务减少锁竞争）
+            progress.onPhaseStart("写入索引", parseResults.size());
+
+            int writeProgress = 0;
+            int batchSize = 50;
+            for (int i = 0; i < parseResults.size(); i += batchSize) {
+                int end = Math.min(i + batchSize, parseResults.size());
+                List<FileParseResult> batch = parseResults.subList(i, end);
+                dbManager.executeInTransactionVoid(conn -> {
+                    for (FileParseResult result : batch) {
+                        writeParsedFile(result);
+                    }
+                    return null;
+                });
+                writeProgress += batch.size();
+                progress.onProgress("写入索引", writeProgress, parseResults.size());
+            }
+            progress.onPhaseEnd("写入索引");
 
             // 6. 重新统计
             int[] stats = storage.getProjectStats();
@@ -219,113 +249,130 @@ public class Indexer {
     }
 
     /**
-     * 索引单个文件（事务保护）
-     * 使用 diff 策略：仅更新变化的符号/块/配置/依赖，减少数据库写入
+     * 阶段 A：解析单个文件（无 DB 操作，可并行）
      */
-    private void indexFile(Path projectRoot, Path filePath, Map<String, String> sha1Cache) throws Exception {
-        // 统一使用正斜杠，确保跨平台兼容
+    private FileParseResult parseFile(Path projectRoot, Path filePath, String cachedSha1) throws Exception {
         String relativePath = projectRoot.relativize(filePath).toString().replace("\\", "/");
         String fileName = filePath.getFileName().toString().toLowerCase();
 
-        dbManager.executeInTransactionVoid(conn -> {
-            if (fileName.endsWith(".java")) {
-                indexJavaFile(relativePath, filePath);
-            } else if (KotlinParserAdapter.isKotlinFile(fileName)) {
-                indexKotlinFile(relativePath, filePath);
-            } else if (ScalaParserAdapter.isScalaFile(fileName)) {
-                indexScalaFile(relativePath, filePath);
-            } else if (ShellParserAdapter.isShellFile(fileName)) {
-                indexShellFile(relativePath, filePath);
-            } else if (PomParser.isPomFile(fileName)) {
-                indexPomFile(relativePath, filePath);
-            } else if (GradleParser.isGradleFile(fileName)) {
-                indexGradleFile(relativePath, filePath);
-            } else if (ConfigFileParser.isConfigFile(fileName)) {
-                indexConfigFile(relativePath, filePath);
+        String sha1 = (cachedSha1 != null) ? cachedSha1 : Sha1Util.compute(filePath);
+
+        if (fileName.endsWith(".java")) {
+            ParseResult parsed = javaParser.parse(relativePath, filePath);
+            String packageName = "";
+            for (Symbol s : parsed.symbols()) {
+                if (s.kind() == Symbol.SymbolKind.CLASS) {
+                    int lastDot = s.qualifiedName().lastIndexOf('.');
+                    packageName = lastDot > 0 ? s.qualifiedName().substring(0, lastDot) : "";
+                    break;
+                }
             }
-
-            // 更新文件元信息（使用缓存的 SHA-1）
-            try {
-                String sha1 = sha1Cache.getOrDefault(relativePath, Sha1Util.compute(filePath));
-                long size = Files.size(filePath);
-                long lastModified = Files.getLastModifiedTime(filePath).toMillis();
-                FileMeta meta = new FileMeta(
-                    relativePath, size, lastModified, sha1,
-                    0, System.currentTimeMillis()
-                );
-                storage.upsertFileMeta(meta);
-            } catch (Exception e) {
-                throw new RuntimeException("更新文件元信息失败", e);
+            List<Chunk> chunks = (parsed.cu() != null && parsed.lines() != null)
+                ? chunker.chunkFile(relativePath, parsed.cu(), parsed.lines(), packageName)
+                : chunker.chunkFile(relativePath, filePath, packageName);
+            return new FileParseResult(relativePath, fileName, sha1,
+                parsed.symbols(), parsed.references(), parsed.calls(),
+                chunks, List.of(), List.of(),
+                parsed.annotations(), parsed.apiRoutes(), parsed.beanDependencies(),
+                parsed.testMappings(), parsed.annotationRefs(), parsed.beanSources());
+        } else if (KotlinParserAdapter.isKotlinFile(fileName)) {
+            ParseResult parsed = kotlinParser.parse(relativePath, filePath);
+            String packageName = "";
+            for (Symbol s : parsed.symbols()) {
+                if (s.kind() == Symbol.SymbolKind.CLASS) {
+                    int lastDot = s.qualifiedName().lastIndexOf('.');
+                    packageName = lastDot > 0 ? s.qualifiedName().substring(0, lastDot) : "";
+                    break;
+                }
             }
-
-            return null;
-        });
-
-        log.debug("索引完成: {}", relativePath);
+            List<Chunk> chunks = chunker.chunkFile(relativePath, filePath, packageName);
+            return new FileParseResult(relativePath, fileName, sha1,
+                parsed.symbols(), parsed.references(), parsed.calls(),
+                chunks, List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        } else if (ScalaParserAdapter.isScalaFile(fileName)) {
+            ParseResult parsed = scalaParser.parse(relativePath, filePath);
+            String packageName = "";
+            for (Symbol s : parsed.symbols()) {
+                if (s.kind() == Symbol.SymbolKind.CLASS) {
+                    int lastDot = s.qualifiedName().lastIndexOf('.');
+                    packageName = lastDot > 0 ? s.qualifiedName().substring(0, lastDot) : "";
+                    break;
+                }
+            }
+            List<Chunk> chunks = chunker.chunkFile(relativePath, filePath, packageName);
+            return new FileParseResult(relativePath, fileName, sha1,
+                parsed.symbols(), parsed.references(), parsed.calls(),
+                chunks, List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        } else if (ShellParserAdapter.isShellFile(fileName)) {
+            ParseResult parsed = shellParser.parse(relativePath, filePath);
+            List<Chunk> chunks = chunker.chunkFile(relativePath, filePath, "");
+            return new FileParseResult(relativePath, fileName, sha1,
+                parsed.symbols(), parsed.references(), parsed.calls(),
+                chunks, List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        } else if (PomParser.isPomFile(fileName)) {
+            List<Dependency> deps = pomParser.parse(relativePath, filePath);
+            return new FileParseResult(relativePath, fileName, sha1,
+                List.of(), List.of(), List.of(), List.of(), List.of(), deps,
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        } else if (GradleParser.isGradleFile(fileName)) {
+            List<Dependency> deps = gradleParser.parse(relativePath, filePath);
+            return new FileParseResult(relativePath, fileName, sha1,
+                List.of(), List.of(), List.of(), List.of(), List.of(), deps,
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        } else if (ConfigFileParser.isConfigFile(fileName)) {
+            List<ConfigEntry> entries = configFileParser.parse(relativePath, filePath);
+            return new FileParseResult(relativePath, fileName, sha1,
+                List.of(), List.of(), List.of(), List.of(), entries, List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        }
+        return new FileParseResult(relativePath, fileName, sha1,
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
     }
 
     /**
-     * Java 文件 diff 索引：
-     * 1. 引用/调用 → 总是全量删除重插（依赖 symbol ID）
-     * 2. 符号 → 按 qualifiedName+kind 做 diff，仅增删变化项
-     * 3. 代码块 → 按 type+className+name 做 diff
+     * 阶段 B：将解析结果写入数据库（在事务内调用）
      */
-    private void indexJavaFile(String relativePath, Path filePath) throws Exception {
-        ParseResult parsed = javaParser.parse(relativePath, filePath);
+    private void writeParsedFile(FileParseResult result) throws Exception {
+        String relativePath = result.relativePath();
 
-        // --- 符号 diff（先插入符号，引用需要 symbol_id） ---
+        // --- 符号 diff ---
         List<Symbol> oldSymbols = storage.findSymbolsByFile(relativePath);
-        List<Symbol> newSymbols = parsed.symbols();
-
-        // 构建旧符号索引：key = qualifiedName + "|" + kind
         Map<String, Symbol> oldSymbolMap = new LinkedHashMap<>();
         for (Symbol s : oldSymbols) {
             oldSymbolMap.put(s.qualifiedName() + "|" + s.kind(), s);
         }
-
-        // 构建新符号索引
         Map<String, Symbol> newSymbolMap = new LinkedHashMap<>();
-        for (Symbol s : newSymbols) {
+        for (Symbol s : result.symbols()) {
             newSymbolMap.put(s.qualifiedName() + "|" + s.kind(), s);
         }
-
-        // 找出需要删除的符号 ID
         List<Long> symbolIdsToDelete = new ArrayList<>();
         for (Map.Entry<String, Symbol> entry : oldSymbolMap.entrySet()) {
             if (!newSymbolMap.containsKey(entry.getKey())) {
                 symbolIdsToDelete.add(entry.getValue().id());
             }
         }
-        if (!symbolIdsToDelete.isEmpty()) {
-            storage.deleteSymbolsByIds(symbolIdsToDelete);
-        }
-
-        // 找出需要插入的符号（不在旧集合中的）
+        if (!symbolIdsToDelete.isEmpty()) storage.deleteSymbolsByIds(symbolIdsToDelete);
         List<Symbol> symbolsToInsert = new ArrayList<>();
         for (Map.Entry<String, Symbol> entry : newSymbolMap.entrySet()) {
             if (!oldSymbolMap.containsKey(entry.getKey())) {
                 symbolsToInsert.add(entry.getValue());
             }
         }
-        if (!symbolsToInsert.isEmpty()) {
-            storage.insertSymbols(symbolsToInsert);
-        }
+        if (!symbolsToInsert.isEmpty()) storage.insertSymbols(symbolsToInsert);
 
-        // --- 引用和调用：先删旧的，再解析 symbol_id 后插入 ---
+        // --- 引用：先删旧的，再解析 symbol_id 后插入 ---
         storage.deleteReferencesByFile(relativePath);
-        storage.deleteCallsByFile(relativePath);
-
-        // 解析引用中的类型名，查找对应的 symbol_id
         int refCount = 0;
-        for (Reference ref : parsed.references()) {
+        for (Reference ref : result.references()) {
             String refName = extractReferenceName(ref.context());
             if (refName != null) {
-                // 先尝试完全限定名查找
                 long symbolId = storage.findSymbolIdByQualifiedName(refName);
-                // 如果找不到，尝试通过名称搜索（精确匹配）
                 if (symbolId <= 0) {
                     var symbols = storage.searchSymbolsByName(refName, 10);
-                    // 查找精确匹配的符号
                     for (var s : symbols) {
                         if (s.name().equals(refName) || s.qualifiedName().equals(refName)) {
                             symbolId = s.id();
@@ -340,12 +387,10 @@ public class Indexer {
                 }
             }
         }
-        if (refCount > 0) {
-            log.debug("为 {} 插入了 {} 个引用", relativePath, refCount);
-        }
 
-        for (Call call : parsed.calls()) {
-            // 如果 calleeFile 为空，尝试通过 calleeMethod 查找 symbol 获取文件路径
+        // --- 调用：先删旧的，再插入 ---
+        storage.deleteCallsByFile(relativePath);
+        for (Call call : result.calls()) {
             if (call.calleeFile() == null || call.calleeFile().isEmpty()) {
                 try {
                     var calleeSymbol = storage.findSymbolByQualifiedName(call.calleeMethod());
@@ -362,17 +407,15 @@ public class Indexer {
 
         // --- 注解：先删旧的，再插入新的 ---
         storage.deleteAnnotationsByFile(relativePath);
-        // 注解 re-insert：通过 annotationRefs 解析 symbolId
-        if (!parsed.annotations().isEmpty() && !parsed.annotationRefs().isEmpty()) {
-            // 构建 qualifiedName → symbolId 映射
+        if (!result.annotations().isEmpty() && !result.annotationRefs().isEmpty()) {
             Map<String, Long> symbolIdMap = new LinkedHashMap<>();
             for (Symbol s : storage.findSymbolsByFile(relativePath)) {
                 symbolIdMap.put(s.qualifiedName() + "|" + s.kind(), s.id());
             }
             List<Annotation> annotationsToInsert = new ArrayList<>();
-            for (var ref : parsed.annotationRefs()) {
-                if (ref.annotationIndex() < parsed.annotations().size()) {
-                    Annotation ann = parsed.annotations().get(ref.annotationIndex());
+            for (var ref : result.annotationRefs()) {
+                if (ref.annotationIndex() < result.annotations().size()) {
+                    Annotation ann = result.annotations().get(ref.annotationIndex());
                     Long symbolId = symbolIdMap.get(ref.ownerQualifiedName() + "|" + ref.ownerKind());
                     if (symbolId != null) {
                         annotationsToInsert.add(new Annotation(0, symbolId, ann.name(), ann.attributes()));
@@ -386,19 +429,16 @@ public class Indexer {
 
         // --- API 路由 ---
         storage.deleteApiRoutesByFile(relativePath);
-        if (!parsed.apiRoutes().isEmpty()) {
-            // 构建方法 qualifiedName → symbolId 映射
+        if (!result.apiRoutes().isEmpty()) {
             Map<String, Long> methodSymbolMap = new LinkedHashMap<>();
             for (Symbol s : storage.findSymbolsByFile(relativePath)) {
                 methodSymbolMap.put(s.qualifiedName(), s.id());
             }
             List<ApiRoute> routesToInsert = new ArrayList<>();
-            for (ApiRoute route : parsed.apiRoutes()) {
-                // 尝试找到对应的 Controller 方法 symbolId
+            for (ApiRoute route : result.apiRoutes()) {
                 long symbolId = -1;
                 for (Symbol s : storage.findSymbolsByFile(relativePath)) {
                     if (s.kind() == Symbol.SymbolKind.CLASS && route.httpMethod() != null) {
-                        // 找到 Controller 类，路由关联到类
                         symbolId = s.id();
                         break;
                     }
@@ -411,15 +451,13 @@ public class Indexer {
 
         // --- Bean 依赖 ---
         storage.deleteBeanDependenciesByFile(relativePath);
-        if (!parsed.beanDependencies().isEmpty()) {
-            // 构建 qualifiedName → symbolId 映射
+        if (!result.beanDependencies().isEmpty()) {
             Map<String, Long> beanSymbolMap = new LinkedHashMap<>();
             for (Symbol s : storage.findSymbolsByFile(relativePath)) {
                 beanSymbolMap.put(s.qualifiedName(), s.id());
             }
             List<BeanDependency> depsToInsert = new ArrayList<>();
-            for (BeanDependency dep : parsed.beanDependencies()) {
-                // 查找依赖方 Bean 的 symbolId（通过类名匹配）
+            for (BeanDependency dep : result.beanDependencies()) {
                 long beanSymbolId = -1;
                 for (Symbol s : storage.findSymbolsByFile(relativePath)) {
                     if (s.kind() == Symbol.SymbolKind.CLASS) {
@@ -427,7 +465,6 @@ public class Indexer {
                         break;
                     }
                 }
-                // 查找被依赖方的 symbolId
                 Long dependsOnSymbolId = null;
                 for (Symbol s : storage.findSymbolsByFile(relativePath)) {
                     if (s.name().equals(dep.dependsOnType()) || s.qualifiedName().equals(dep.dependsOnType())) {
@@ -444,10 +481,9 @@ public class Indexer {
 
         // --- 测试映射 ---
         storage.deleteTestMappingsByFile(relativePath);
-        if (!parsed.testMappings().isEmpty()) {
+        if (!result.testMappings().isEmpty()) {
             List<TestMapping> mappingsToInsert = new ArrayList<>();
-            for (TestMapping mapping : parsed.testMappings()) {
-                // 查找测试类和源类的 symbolId
+            for (TestMapping mapping : result.testMappings()) {
                 Long testSymbolId = null;
                 Long sourceSymbolId = null;
                 for (Symbol s : storage.findSymbolsByFile(relativePath)) {
@@ -467,54 +503,54 @@ public class Indexer {
             storage.insertTestMappings(mappingsToInsert);
         }
 
-        // --- 代码块 diff ---
-        String packageName = "";
-        for (Symbol s : newSymbols) {
-            if (s.kind() == Symbol.SymbolKind.CLASS) {
-                int lastDot = s.qualifiedName().lastIndexOf('.');
-                packageName = lastDot > 0 ? s.qualifiedName().substring(0, lastDot) : "";
-                break;
+        // --- 块 diff ---
+        if (!result.chunks().isEmpty()) {
+            List<Chunk> oldChunks = storage.findChunksByFile(relativePath);
+            Map<String, Chunk> oldChunkMap = new LinkedHashMap<>();
+            for (Chunk c : oldChunks) {
+                oldChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
             }
-        }
-        List<Chunk> newChunks = chunker.chunkFile(relativePath, filePath, packageName);
-        List<Chunk> oldChunks = storage.findChunksByFile(relativePath);
-
-        Map<String, Chunk> oldChunkMap = new LinkedHashMap<>();
-        for (Chunk c : oldChunks) {
-            oldChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
-        }
-
-        Map<String, Chunk> newChunkMap = new LinkedHashMap<>();
-        for (Chunk c : newChunks) {
-            newChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
-        }
-
-        List<Long> chunkIdsToDelete = new ArrayList<>();
-        for (Map.Entry<String, Chunk> entry : oldChunkMap.entrySet()) {
-            if (!newChunkMap.containsKey(entry.getKey())) {
-                chunkIdsToDelete.add(entry.getValue().id());
+            Map<String, Chunk> newChunkMap = new LinkedHashMap<>();
+            for (Chunk c : result.chunks()) {
+                newChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
             }
-        }
-        if (!chunkIdsToDelete.isEmpty()) {
-            storage.deleteChunksByIds(chunkIdsToDelete);
-        }
-
-        List<Chunk> chunksToInsert = new ArrayList<>();
-        for (Map.Entry<String, Chunk> entry : newChunkMap.entrySet()) {
-            if (!oldChunkMap.containsKey(entry.getKey())) {
-                chunksToInsert.add(entry.getValue());
+            List<Long> chunkIdsToDelete = new ArrayList<>();
+            for (Map.Entry<String, Chunk> entry : oldChunkMap.entrySet()) {
+                if (!newChunkMap.containsKey(entry.getKey())) {
+                    chunkIdsToDelete.add(entry.getValue().id());
+                }
             }
-        }
-        if (!chunksToInsert.isEmpty()) {
-            storage.insertChunks(chunksToInsert);
+            if (!chunkIdsToDelete.isEmpty()) storage.deleteChunksByIds(chunkIdsToDelete);
+            List<Chunk> chunksToInsert = new ArrayList<>();
+            for (Map.Entry<String, Chunk> entry : newChunkMap.entrySet()) {
+                if (!oldChunkMap.containsKey(entry.getKey())) {
+                    chunksToInsert.add(entry.getValue());
+                }
+            }
+            if (!chunksToInsert.isEmpty()) storage.insertChunks(chunksToInsert);
         }
 
-        log.debug("Java diff 完成: {} (符号: {}增{}删, 块: {}增{}删)",
-            relativePath, symbolsToInsert.size(), symbolIdsToDelete.size(),
-            chunksToInsert.size(), chunkIdsToDelete.size());
+        // --- 配置文件 diff ---
+        if (!result.configEntries().isEmpty()) {
+            writeConfigEntries(relativePath, result.configEntries());
+        }
+
+        // --- 依赖文件 diff ---
+        if (!result.dependencies().isEmpty()) {
+            writeDependencies(relativePath, result.dependencies());
+        }
+
+        // 更新文件元信息
+        Path absPath = config.getProjectRoot().resolve(relativePath);
+        long size = Files.size(absPath);
+        long lastModified = Files.getLastModifiedTime(absPath).toMillis();
+        FileMeta meta = new FileMeta(relativePath, size, lastModified, result.sha1(), 0, System.currentTimeMillis());
+        storage.upsertFileMeta(meta);
 
         // --- 代码度量：计算复杂度并存储 ---
-        calculateAndStoreCodeMetrics(relativePath, filePath, newSymbols, newChunks);
+        calculateAndStoreCodeMetrics(relativePath, absPath, result.symbols(), result.chunks());
+
+        log.debug("写入完成: {}", relativePath);
     }
 
     /**
@@ -525,7 +561,6 @@ public class Indexer {
         try {
             String content = Files.readString(filePath);
 
-            // 按类分组计算
             Map<String, List<Chunk>> classChunks = new LinkedHashMap<>();
             for (Chunk c : chunks) {
                 if (c.className() != null && !c.className().isEmpty()) {
@@ -548,7 +583,6 @@ public class Indexer {
                     if (c.type().name().equals("METHOD")) {
                         methodCount++;
                         linesOfCode += c.endLine() - c.startLine() + 1;
-                        // 计算该方法的圈复杂度
                         int cc = ComplexityAnalyzer.calculateCyclomaticComplexity(content, c.startLine(), c.endLine());
                         totalComplexity += cc;
                     } else if (c.type().name().equals("FIELD")) {
@@ -558,7 +592,7 @@ public class Indexer {
 
                 CodeMetrics metrics = new CodeMetrics(
                     0, null, relativePath, className,
-                    "", // packageName
+                    "",
                     linesOfCode, methodCount, fieldCount,
                     totalComplexity, System.currentTimeMillis()
                 );
@@ -570,330 +604,9 @@ public class Indexer {
     }
 
     /**
-     * Kotlin 文件 diff 索引：类似 Java，但使用 KotlinParserAdapter
+     * 配置文件 diff 写入（纯 DB 操作）
      */
-    private void indexKotlinFile(String relativePath, Path filePath) throws Exception {
-        ParseResult parsed = kotlinParser.parse(relativePath, filePath);
-
-        // --- 符号 diff ---
-        List<Symbol> oldSymbols = storage.findSymbolsByFile(relativePath);
-        List<Symbol> newSymbols = parsed.symbols();
-
-        Map<String, Symbol> oldSymbolMap = new LinkedHashMap<>();
-        for (Symbol s : oldSymbols) {
-            oldSymbolMap.put(s.qualifiedName() + "|" + s.kind(), s);
-        }
-
-        Map<String, Symbol> newSymbolMap = new LinkedHashMap<>();
-        for (Symbol s : newSymbols) {
-            newSymbolMap.put(s.qualifiedName() + "|" + s.kind(), s);
-        }
-
-        List<Long> symbolIdsToDelete = new ArrayList<>();
-        for (Map.Entry<String, Symbol> entry : oldSymbolMap.entrySet()) {
-            if (!newSymbolMap.containsKey(entry.getKey())) {
-                symbolIdsToDelete.add(entry.getValue().id());
-            }
-        }
-        if (!symbolIdsToDelete.isEmpty()) {
-            storage.deleteSymbolsByIds(symbolIdsToDelete);
-        }
-
-        List<Symbol> symbolsToInsert = new ArrayList<>();
-        for (Map.Entry<String, Symbol> entry : newSymbolMap.entrySet()) {
-            if (!oldSymbolMap.containsKey(entry.getKey())) {
-                symbolsToInsert.add(entry.getValue());
-            }
-        }
-        if (!symbolsToInsert.isEmpty()) {
-            storage.insertSymbols(symbolsToInsert);
-        }
-
-        // --- 引用和调用 ---
-        storage.deleteReferencesByFile(relativePath);
-        storage.deleteCallsByFile(relativePath);
-
-        for (Reference ref : parsed.references()) {
-            String refName = extractReferenceName(ref.context());
-            if (refName != null) {
-                long symbolId = storage.findSymbolIdByQualifiedName(refName);
-                if (symbolId > 0) {
-                    Reference resolvedRef = new Reference(0, symbolId, ref.fromFile(), ref.fromLine(), ref.context());
-                    storage.insertReference(resolvedRef);
-                }
-            }
-        }
-
-        for (Call call : parsed.calls()) {
-            storage.insertCall(call);
-        }
-
-        // --- 注解：先删旧的 ---
-        storage.deleteAnnotationsByFile(relativePath);
-
-        // --- 代码块 diff ---
-        String packageName = "";
-        for (Symbol s : newSymbols) {
-            if (s.kind() == Symbol.SymbolKind.CLASS) {
-                int lastDot = s.qualifiedName().lastIndexOf('.');
-                packageName = lastDot > 0 ? s.qualifiedName().substring(0, lastDot) : "";
-                break;
-            }
-        }
-        List<Chunk> newChunks = chunker.chunkFile(relativePath, filePath, packageName);
-        List<Chunk> oldChunks = storage.findChunksByFile(relativePath);
-
-        Map<String, Chunk> oldChunkMap = new LinkedHashMap<>();
-        for (Chunk c : oldChunks) {
-            oldChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
-        }
-
-        Map<String, Chunk> newChunkMap = new LinkedHashMap<>();
-        for (Chunk c : newChunks) {
-            newChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
-        }
-
-        List<Long> chunkIdsToDelete = new ArrayList<>();
-        for (Map.Entry<String, Chunk> entry : oldChunkMap.entrySet()) {
-            if (!newChunkMap.containsKey(entry.getKey())) {
-                chunkIdsToDelete.add(entry.getValue().id());
-            }
-        }
-        if (!chunkIdsToDelete.isEmpty()) {
-            storage.deleteChunksByIds(chunkIdsToDelete);
-        }
-
-        List<Chunk> chunksToInsert = new ArrayList<>();
-        for (Map.Entry<String, Chunk> entry : newChunkMap.entrySet()) {
-            if (!oldChunkMap.containsKey(entry.getKey())) {
-                chunksToInsert.add(entry.getValue());
-            }
-        }
-        if (!chunksToInsert.isEmpty()) {
-            storage.insertChunks(chunksToInsert);
-        }
-
-        log.debug("Kotlin diff 完成: {} (符号: {}增{}删, 块: {}增{}删)",
-            relativePath, symbolsToInsert.size(), symbolIdsToDelete.size(),
-            chunksToInsert.size(), chunkIdsToDelete.size());
-    }
-
-    /**
-     * Scala 文件 diff 索引：类似 Kotlin，使用 ScalaParserAdapter
-     */
-    private void indexScalaFile(String relativePath, Path filePath) throws Exception {
-        ParseResult parsed = scalaParser.parse(relativePath, filePath);
-
-        // --- 符号 diff ---
-        List<Symbol> oldSymbols = storage.findSymbolsByFile(relativePath);
-        List<Symbol> newSymbols = parsed.symbols();
-
-        Map<String, Symbol> oldSymbolMap = new LinkedHashMap<>();
-        for (Symbol s : oldSymbols) {
-            oldSymbolMap.put(s.qualifiedName() + "|" + s.kind(), s);
-        }
-
-        Map<String, Symbol> newSymbolMap = new LinkedHashMap<>();
-        for (Symbol s : newSymbols) {
-            newSymbolMap.put(s.qualifiedName() + "|" + s.kind(), s);
-        }
-
-        List<Long> symbolIdsToDelete = new ArrayList<>();
-        for (Map.Entry<String, Symbol> entry : oldSymbolMap.entrySet()) {
-            if (!newSymbolMap.containsKey(entry.getKey())) {
-                symbolIdsToDelete.add(entry.getValue().id());
-            }
-        }
-        if (!symbolIdsToDelete.isEmpty()) {
-            storage.deleteSymbolsByIds(symbolIdsToDelete);
-        }
-
-        List<Symbol> symbolsToInsert = new ArrayList<>();
-        for (Map.Entry<String, Symbol> entry : newSymbolMap.entrySet()) {
-            if (!oldSymbolMap.containsKey(entry.getKey())) {
-                symbolsToInsert.add(entry.getValue());
-            }
-        }
-        if (!symbolsToInsert.isEmpty()) {
-            storage.insertSymbols(symbolsToInsert);
-        }
-
-        // --- 引用和调用 ---
-        storage.deleteReferencesByFile(relativePath);
-        storage.deleteCallsByFile(relativePath);
-
-        for (Reference ref : parsed.references()) {
-            String refName = extractReferenceName(ref.context());
-            if (refName != null) {
-                long symbolId = storage.findSymbolIdByQualifiedName(refName);
-                if (symbolId > 0) {
-                    Reference resolvedRef = new Reference(0, symbolId, ref.fromFile(), ref.fromLine(), ref.context());
-                    storage.insertReference(resolvedRef);
-                }
-            }
-        }
-
-        for (Call call : parsed.calls()) {
-            storage.insertCall(call);
-        }
-
-        // --- 注解：先删旧的 ---
-        storage.deleteAnnotationsByFile(relativePath);
-
-        // --- 代码块 diff ---
-        String packageName = "";
-        for (Symbol s : newSymbols) {
-            if (s.kind() == Symbol.SymbolKind.CLASS) {
-                int lastDot = s.qualifiedName().lastIndexOf('.');
-                packageName = lastDot > 0 ? s.qualifiedName().substring(0, lastDot) : "";
-                break;
-            }
-        }
-        List<Chunk> newChunks = chunker.chunkFile(relativePath, filePath, packageName);
-        List<Chunk> oldChunks = storage.findChunksByFile(relativePath);
-
-        Map<String, Chunk> oldChunkMap = new LinkedHashMap<>();
-        for (Chunk c : oldChunks) {
-            oldChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
-        }
-
-        Map<String, Chunk> newChunkMap = new LinkedHashMap<>();
-        for (Chunk c : newChunks) {
-            newChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
-        }
-
-        List<Long> chunkIdsToDelete = new ArrayList<>();
-        for (Map.Entry<String, Chunk> entry : oldChunkMap.entrySet()) {
-            if (!newChunkMap.containsKey(entry.getKey())) {
-                chunkIdsToDelete.add(entry.getValue().id());
-            }
-        }
-        if (!chunkIdsToDelete.isEmpty()) {
-            storage.deleteChunksByIds(chunkIdsToDelete);
-        }
-
-        List<Chunk> chunksToInsert = new ArrayList<>();
-        for (Map.Entry<String, Chunk> entry : newChunkMap.entrySet()) {
-            if (!oldChunkMap.containsKey(entry.getKey())) {
-                chunksToInsert.add(entry.getValue());
-            }
-        }
-        if (!chunksToInsert.isEmpty()) {
-            storage.insertChunks(chunksToInsert);
-        }
-
-        log.debug("Scala diff 完成: {} (符号: {}增{}删, 块: {}增{}删)",
-            relativePath, symbolsToInsert.size(), symbolIdsToDelete.size(),
-            chunksToInsert.size(), chunkIdsToDelete.size());
-    }
-
-    /**
-     * Shell 脚本 diff 索引：类似 Scala，使用 ShellParserAdapter
-     */
-    private void indexShellFile(String relativePath, Path filePath) throws Exception {
-        ParseResult parsed = shellParser.parse(relativePath, filePath);
-
-        // --- 符号 diff ---
-        List<Symbol> oldSymbols = storage.findSymbolsByFile(relativePath);
-        List<Symbol> newSymbols = parsed.symbols();
-
-        Map<String, Symbol> oldSymbolMap = new LinkedHashMap<>();
-        for (Symbol s : oldSymbols) {
-            oldSymbolMap.put(s.qualifiedName() + "|" + s.kind(), s);
-        }
-
-        Map<String, Symbol> newSymbolMap = new LinkedHashMap<>();
-        for (Symbol s : newSymbols) {
-            newSymbolMap.put(s.qualifiedName() + "|" + s.kind(), s);
-        }
-
-        List<Long> symbolIdsToDelete = new ArrayList<>();
-        for (Map.Entry<String, Symbol> entry : oldSymbolMap.entrySet()) {
-            if (!newSymbolMap.containsKey(entry.getKey())) {
-                symbolIdsToDelete.add(entry.getValue().id());
-            }
-        }
-        if (!symbolIdsToDelete.isEmpty()) {
-            storage.deleteSymbolsByIds(symbolIdsToDelete);
-        }
-
-        List<Symbol> symbolsToInsert = new ArrayList<>();
-        for (Map.Entry<String, Symbol> entry : newSymbolMap.entrySet()) {
-            if (!oldSymbolMap.containsKey(entry.getKey())) {
-                symbolsToInsert.add(entry.getValue());
-            }
-        }
-        if (!symbolsToInsert.isEmpty()) {
-            storage.insertSymbols(symbolsToInsert);
-        }
-
-        // --- 引用和调用 ---
-        storage.deleteReferencesByFile(relativePath);
-        storage.deleteCallsByFile(relativePath);
-
-        for (Reference ref : parsed.references()) {
-            String refName = extractReferenceName(ref.context());
-            if (refName != null) {
-                long symbolId = storage.findSymbolIdByQualifiedName(refName);
-                if (symbolId > 0) {
-                    Reference resolvedRef = new Reference(0, symbolId, ref.fromFile(), ref.fromLine(), ref.context());
-                    storage.insertReference(resolvedRef);
-                }
-            }
-        }
-
-        for (Call call : parsed.calls()) {
-            storage.insertCall(call);
-        }
-
-        // --- 注解：先删旧的 ---
-        storage.deleteAnnotationsByFile(relativePath);
-
-        // --- 代码块 diff ---
-        String packageName = "";
-        List<Chunk> newChunks = chunker.chunkFile(relativePath, filePath, packageName);
-        List<Chunk> oldChunks = storage.findChunksByFile(relativePath);
-
-        Map<String, Chunk> oldChunkMap = new LinkedHashMap<>();
-        for (Chunk c : oldChunks) {
-            oldChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
-        }
-
-        Map<String, Chunk> newChunkMap = new LinkedHashMap<>();
-        for (Chunk c : newChunks) {
-            newChunkMap.put(c.type() + "|" + c.className() + "|" + c.name(), c);
-        }
-
-        List<Long> chunkIdsToDelete = new ArrayList<>();
-        for (Map.Entry<String, Chunk> entry : oldChunkMap.entrySet()) {
-            if (!newChunkMap.containsKey(entry.getKey())) {
-                chunkIdsToDelete.add(entry.getValue().id());
-            }
-        }
-        if (!chunkIdsToDelete.isEmpty()) {
-            storage.deleteChunksByIds(chunkIdsToDelete);
-        }
-
-        List<Chunk> chunksToInsert = new ArrayList<>();
-        for (Map.Entry<String, Chunk> entry : newChunkMap.entrySet()) {
-            if (!oldChunkMap.containsKey(entry.getKey())) {
-                chunksToInsert.add(entry.getValue());
-            }
-        }
-        if (!chunksToInsert.isEmpty()) {
-            storage.insertChunks(chunksToInsert);
-        }
-
-        log.debug("Shell diff 完成: {} (符号: {}增{}删, 块: {}增{}删)",
-            relativePath, symbolsToInsert.size(), symbolIdsToDelete.size(),
-            chunksToInsert.size(), chunkIdsToDelete.size());
-    }
-
-    /**
-     * 配置文件 diff 索引：按 filePath+key 做 diff
-     */
-    private void indexConfigFile(String relativePath, Path filePath) throws Exception {
-        List<ConfigEntry> newEntries = configFileParser.parse(relativePath, filePath);
+    private void writeConfigEntries(String relativePath, List<ConfigEntry> newEntries) throws Exception {
         List<ConfigEntry> oldEntries = storage.findConfigEntriesByFile(relativePath);
 
         Map<String, ConfigEntry> oldMap = new LinkedHashMap<>();
@@ -906,7 +619,6 @@ public class Indexer {
             newMap.put(e.key(), e);
         }
 
-        // 找出需要删除的 key
         List<String> keysToDelete = new ArrayList<>();
         for (String key : oldMap.keySet()) {
             if (!newMap.containsKey(key)) {
@@ -914,7 +626,6 @@ public class Indexer {
             }
         }
 
-        // 找出需要插入/更新的 entry
         List<ConfigEntry> entriesToUpsert = new ArrayList<>();
         for (Map.Entry<String, ConfigEntry> entry : newMap.entrySet()) {
             ConfigEntry old = oldMap.get(entry.getKey());
@@ -929,29 +640,12 @@ public class Indexer {
         if (!entriesToUpsert.isEmpty()) {
             storage.insertConfigEntries(entriesToUpsert);
         }
-
-        log.debug("配置文件 diff 完成: {} ({}增{}删)", relativePath, entriesToUpsert.size(), keysToDelete.size());
     }
 
     /**
-     * POM 文件 diff 索引：按 groupId+artifactId 做 diff
+     * 依赖文件 diff 写入（纯 DB 操作）
      */
-    private void indexPomFile(String relativePath, Path filePath) throws Exception {
-        indexDependencyFile(relativePath, filePath, pomParser.parse(relativePath, filePath), "POM");
-    }
-
-    /**
-     * Gradle 文件 diff 索引：按 groupId+artifactId 做 diff
-     */
-    private void indexGradleFile(String relativePath, Path filePath) throws Exception {
-        indexDependencyFile(relativePath, filePath, gradleParser.parse(relativePath, filePath), "Gradle");
-    }
-
-    /**
-     * 依赖文件通用 diff 索引
-     */
-    private void indexDependencyFile(String relativePath, Path filePath,
-                                      List<Dependency> newDeps, String type) throws Exception {
+    private void writeDependencies(String relativePath, List<Dependency> newDeps) throws Exception {
         List<Dependency> oldDeps = storage.findDependenciesByFile(relativePath);
 
         Map<String, Dependency> oldMap = new LinkedHashMap<>();
@@ -984,8 +678,6 @@ public class Indexer {
         if (!depsToInsert.isEmpty()) {
             storage.insertDependencies(depsToInsert);
         }
-
-        log.debug("{} diff 完成: {} ({}增{}删)", type, relativePath, depsToInsert.size(), keysToDelete.size());
     }
 
     /**
@@ -1119,7 +811,7 @@ public class Indexer {
         try {
             var allFileMeta = storage.findAllFileMeta();
             int deleted = 0;
-            for (var meta : allFileMeta) {
+            for (var meta : allFileMeta.values()) {
                 Path filePath = projectRoot.resolve(meta.filePath());
                 if (!java.nio.file.Files.exists(filePath)) {
                     storage.deleteAllByFile(meta.filePath());
