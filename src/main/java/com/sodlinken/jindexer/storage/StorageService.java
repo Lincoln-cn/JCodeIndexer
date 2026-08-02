@@ -543,7 +543,6 @@ public class StorageService implements AutoCloseable {
             """;
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
             for (Reference ref : refs) {
-                if (ref.symbolId() <= 0) continue;
                 ps.setLong(1, ref.symbolId());
                 ps.setString(2, ref.fromFile());
                 ps.setInt(3, ref.fromLine());
