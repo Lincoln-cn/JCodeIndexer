@@ -351,37 +351,40 @@ Add to your MCP configuration:
 ## How It Works
 
 ```
-┌──────────────┐     MCP (stdio)     ┌──────────────────────┐
-│  AI Assistant │ ◄─────────────────► │  Java Code Indexer   │
-│  (Qwen/Claude)│    JSON-RPC         │                      │
-└──────────────┘                     │  ┌────────────────┐  │
-                                     │  │ Parsers:       │  │
-                                     │  │  JavaParser    │  │
-                                     │  │  KotlinParser  │  │
-                                     │  │  ScalaParser   │  │
-                                     │  └───────┬────────┘  │
-                                     │          ▼            │
-                                     │  ┌────────────────┐  │
-                                     │  │  SQLite (WAL)  │  │
-                                     │  │  symbols       │  │
-                                     │  │  references    │  │
-                                     │  │  call_graphs   │  │
-                                     │  │  annotations   │  │
-                                     │  │  configs       │  │
-                                     │  │  dependencies  │  │
-                                     │  └────────────────┘  │
-                                     └──────────────────────┘
+┌──────────────┐     MCP (stdio)     ┌──────────────────────────────────────┐
+│  AI Assistant │ ◄─────────────────► │  Java Code Indexer                   │
+│  (Qwen/Claude)│    JSON-RPC         │                                      │
+└──────────────┘                     │  Phase A: Parallel Parse (no lock)   │
+                                     │  ┌────────────────┐                  │
+                                     │  │ Virtual Threads│──► Parsers:      │
+                                     │  │  (concurrent)  │    JavaParser    │
+                                     │  │                │    KotlinParser  │
+                                     │  │                │    ScalaParser   │
+                                     │  └───────┬────────┘                  │
+                                     │          ▼                            │
+                                     │  Phase B: Batch Write (transactional) │
+                                     │  ┌────────────────┐                  │
+                                     │  │  SQLite (WAL)  │                  │
+                                     │  │  symbols       │                  │
+                                     │  │  references    │                  │
+                                     │  │  call_graphs   │                  │
+                                     │  │  annotations   │                  │
+                                     │  │  configs       │                  │
+                                     │  │  dependencies  │                  │
+                                     │  └────────────────┘                  │
+                                     └──────────────────────────────────────┘
 ```
 
-### Indexing Strategy
+### Indexing Strategy (Two-Phase Architecture)
 
 1. Walk JVM source files (Java/Kotlin/Scala) via filesystem traversal
-2. SHA-1 content hash skips unchanged files (incremental)
-3. Parsers extract symbols, references, call relationships, and annotations
-4. POM/Gradle parsers extract dependency information
-5. Config parsers extract YAML/Properties/.env entries
-6. All data upserted into embedded SQLite (WAL mode)
-7. FTS5 full-text search indexes auto-synced via triggers
+2. **Parallel SHA-1 comparison** — pre-fetch all file metadata (single SQL), compute hashes concurrently via virtual threads
+3. **Phase A — Parallel Parse** (no DB lock): virtual threads parse files concurrently, extracting symbols, references, call relationships, annotations, and code chunks. Each file is parsed only once (AST reused for chunking).
+4. **Phase B — Batch Write** (single transaction per 50 files): all DB operations batched — references/calls use `executeBatch()`, stale files deleted via `IN` clauses, stats merged into a single SQL query.
+5. POM/Gradle parsers extract dependency information
+6. Config parsers extract YAML/Properties/.env entries
+7. All data upserted into embedded SQLite (WAL mode)
+8. FTS5 full-text search indexes auto-synced via triggers
 
 ### Database Schema
 
@@ -423,7 +426,7 @@ src/main/java/com/sodlinken/jindexer/
 ├── mcp/          # MCP server (JSON-RPC over stdio)
 ├── config/       # YAML config loader
 ├── storage/      # SQLite schema & StorageService (including FTS5)
-├── indexer/      # Incremental indexing engine
+├── indexer/      # Two-phase incremental indexing engine (parallel parse + batch write)
 ├── parser/       # Java, Kotlin, Scala, POM, Gradle, Config parsers
 ├── chunker/      # Code chunking (class/method slices)
 ├── search/       # Structured search (FTS5 full-text)

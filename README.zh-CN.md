@@ -338,33 +338,40 @@ CLI 参数 → 环境变量 → 配置文件 → 默认值
 ## 工作原理
 
 ```
-┌──────────────┐     MCP (stdio)     ┌──────────────────────┐
-│  AI 编程助手  │ ◄─────────────────► │  Java Code Indexer   │
-│  (Qwen/Claude)│    JSON-RPC         │                      │
-└──────────────┘                     │  ┌────────────────┐  │
-                                     │  │ JavaParser AST │  │
-                                     │  └───────┬────────┘  │
-                                     │          ▼            │
-                                     │  ┌────────────────┐  │
-                                     │  │  SQLite (WAL)  │  │
-                                     │  │  symbols       │  │
-                                     │  │  references    │  │
-                                     │  │  call_graphs   │  │
-                                     │  │  configs       │  │
-                                     │  │  dependencies  │  │
-                                     │  └────────────────┘  │
-                                     └──────────────────────┘
+┌──────────────┐     MCP (stdio)     ┌──────────────────────────────────────┐
+│  AI 编程助手  │ ◄─────────────────► │  Java Code Indexer                   │
+│  (Qwen/Claude)│    JSON-RPC         │                                      │
+└──────────────┘                     │  阶段 A：并行解析（无锁）              │
+                                     │  ┌────────────────┐                  │
+                                     │  │  虚拟线程并发   │──► 解析器：       │
+                                     │  │                │    JavaParser    │
+                                     │  │                │    KotlinParser  │
+                                     │  │                │    ScalaParser   │
+                                     │  └───────┬────────┘                  │
+                                     │          ▼                            │
+                                     │  阶段 B：批量写入（事务保护）           │
+                                     │  ┌────────────────┐                  │
+                                     │  │  SQLite (WAL)  │                  │
+                                     │  │  symbols       │                  │
+                                     │  │  references    │                  │
+                                     │  │  call_graphs   │                  │
+                                     │  │  annotations   │                  │
+                                     │  │  configs       │                  │
+                                     │  │  dependencies  │                  │
+                                     │  └────────────────┘                  │
+                                     └──────────────────────────────────────┘
 ```
 
-### 索引策略
+### 索引策略（两阶段架构）
 
-1. 文件系统遍历 Java 源文件
-2. SHA-1 内容哈希跳过未修改文件（增量索引）
-3. JavaParser AST 提取符号、引用和调用关系
-4. POM/Gradle 解析器提取依赖信息
-5. 配置解析器提取 YAML/Properties/.env 条目
-6. 所有数据 upsert 到嵌入式 SQLite（WAL 模式）
-7. FTS5 全文搜索索引通过触发器自动同步
+1. 文件系统遍历 Java/Kotlin/Scala 源文件
+2. **并行 SHA-1 比对** — 预取所有文件元数据（单次 SQL），虚拟线程并发计算哈希
+3. **阶段 A — 并行解析**（无 DB 锁）：虚拟线程并发解析文件，提取符号、引用、调用关系、注解和代码块。每个文件仅解析一次（AST 复用于代码切片）
+4. **阶段 B — 批量写入**（每 50 文件一个事务）：所有 DB 操作批处理化 — 引用/调用使用 `executeBatch()`，过期文件通过 `IN` 子句删除，统计合并为单条 SQL
+5. POM/Gradle 解析器提取依赖信息
+6. 配置解析器提取 YAML/Properties/.env 条目
+7. 所有数据 upsert 到嵌入式 SQLite（WAL 模式）
+8. FTS5 全文搜索索引通过触发器自动同步
 
 ### 数据库 Schema
 
@@ -406,7 +413,7 @@ src/main/java/com/sodlinken/jindexer/
 ├── mcp/          # MCP 服务 (JSON-RPC over stdio)
 ├── config/       # YAML 配置加载器
 ├── storage/      # SQLite schema 和 StorageService（含 FTS5）
-├── indexer/      # 增量索引引擎
+├── indexer/      # 两阶段增量索引引擎（并行解析 + 批量写入）
 ├── parser/       # Java、POM、Gradle、Config 解析器
 ├── chunker/      # 代码切片（类/方法级别）
 ├── search/       # 结构化搜索（FTS5 全文搜索）
