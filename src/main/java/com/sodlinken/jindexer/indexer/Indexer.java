@@ -780,11 +780,27 @@ public class Indexer {
                 }
             }
 
+            // Phase A: 并行解析
+            List<FileParseResult> parseResults = new ArrayList<>();
             for (Path file : files) {
                 try {
-                    indexFile(projectRoot, file, sha1Cache);
+                    String relPath = projectRoot.relativize(file).toString().replace("\\", "/");
+                    FileParseResult result = parseFile(projectRoot, file, sha1Cache.get(relPath));
+                    parseResults.add(result);
                 } catch (Exception e) {
-                    log.error("索引文件失败: {}", file, e);
+                    log.error("解析文件失败: {}", file, e);
+                }
+            }
+
+            // Phase B: 批量写入
+            for (FileParseResult result : parseResults) {
+                try {
+                    dbManager.executeInTransactionVoid(conn -> {
+                        writeParsedFile(result);
+                        return null;
+                    });
+                } catch (Exception e) {
+                    log.error("写入文件失败: {}", result.relativePath(), e);
                 }
             }
 

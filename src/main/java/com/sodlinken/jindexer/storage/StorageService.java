@@ -1280,10 +1280,18 @@ public class StorageService implements AutoCloseable {
     public void deleteAllByFiles(List<String> filePaths) throws SQLException {
         if (filePaths.isEmpty()) return;
         String inClause = buildInClause(filePaths.size());
-        String[] tables = {"code_references", "calls", "chunks", "symbols", "config_entries", "dependencies", "file_meta"};
-        String column = "file_path";
-        for (String table : tables) {
-            String sql = "DELETE FROM " + table + " WHERE " + column + " IN " + inClause;
+        // 每张表的文件列名不同
+        String[][] tableColumns = {
+            {"code_references", "from_file"},
+            {"calls", "caller_file"},
+            {"chunks", "file_path"},
+            {"symbols", "file_path"},
+            {"config_entries", "file_path"},
+            {"dependencies", "file_path"},
+            {"file_meta", "file_path"}
+        };
+        for (String[] tc : tableColumns) {
+            String sql = "DELETE FROM " + tc[0] + " WHERE " + tc[1] + " IN " + inClause;
             try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
                 for (int i = 0; i < filePaths.size(); i++) {
                     ps.setString(i + 1, filePaths.get(i));

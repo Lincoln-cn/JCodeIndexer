@@ -8,6 +8,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -261,7 +262,7 @@ class StorageServiceTest {
         assertEquals(3, all.size());
 
         // 验证包含所有文件
-        var paths = all.stream().map(FileMeta::filePath).toList();
+        var paths = new ArrayList<>(all.keySet());
         assertTrue(paths.contains("A.java"));
         assertTrue(paths.contains("B.java"));
         assertTrue(paths.contains("C.java"));
