@@ -206,11 +206,24 @@ public class Indexer {
             }
             progress.onPhaseEnd("解析文件");
 
-            // 5b. 批量写入数据库（单线程，大事务减少锁竞争）
+            // 5b. 两阶段写入数据库：先写所有符号，再写引用/调用/注解
+            //     这样处理文件 B 时，文件 A 的符号已入库，引用可正确解析
             progress.onPhaseStart("写入索引", parseResults.size());
 
-            int writeProgress = 0;
             int batchSize = 50;
+            // Phase 1: 写入所有文件的符号
+            for (int i = 0; i < parseResults.size(); i += batchSize) {
+                int end = Math.min(i + batchSize, parseResults.size());
+                List<FileParseResult> batch = parseResults.subList(i, end);
+                dbManager.executeInTransactionVoid(conn -> {
+                    for (FileParseResult result : batch) {
+                        writeFileSymbols(result);
+                    }
+                    return null;
+                });
+                progress.onProgress("写入索引", Math.min(end, parseResults.size()), parseResults.size());
+            }
+            // Phase 2: 写入引用、调用、注解等
             for (int i = 0; i < parseResults.size(); i += batchSize) {
                 int end = Math.min(i + batchSize, parseResults.size());
                 List<FileParseResult> batch = parseResults.subList(i, end);
@@ -220,8 +233,7 @@ public class Indexer {
                     }
                     return null;
                 });
-                writeProgress += batch.size();
-                progress.onProgress("写入索引", writeProgress, parseResults.size());
+                progress.onProgress("写入索引", Math.min(end, parseResults.size()), parseResults.size());
             }
             progress.onPhaseEnd("写入索引");
 
@@ -334,12 +346,10 @@ public class Indexer {
     }
 
     /**
-     * 阶段 B：将解析结果写入数据库（在事务内调用）
+     * 仅写入符号（不含引用/调用/注解），用于两阶段写入的第一阶段。
      */
-    private void writeParsedFile(FileParseResult result) throws Exception {
+    private void writeFileSymbols(FileParseResult result) throws Exception {
         String relativePath = result.relativePath();
-
-        // --- 符号 diff ---
         List<Symbol> oldSymbols = storage.findSymbolsByFile(relativePath);
         Map<String, Symbol> oldSymbolMap = new LinkedHashMap<>();
         for (Symbol s : oldSymbols) {
@@ -363,6 +373,13 @@ public class Indexer {
             }
         }
         if (!symbolsToInsert.isEmpty()) storage.insertSymbols(symbolsToInsert);
+    }
+
+    private void writeParsedFile(FileParseResult result) throws Exception {
+        String relativePath = result.relativePath();
+
+        // --- 符号 diff ---
+        writeFileSymbols(result);
 
         // --- 引用：先删旧的，再解析 symbol_id 后插入 ---
         storage.deleteReferencesByFile(relativePath);
@@ -792,7 +809,17 @@ public class Indexer {
                 }
             }
 
-            // Phase B: 批量写入
+            // Phase B: 两阶段写入 - 先写所有符号，再写引用/调用/注解
+            for (FileParseResult result : parseResults) {
+                try {
+                    dbManager.executeInTransactionVoid(conn -> {
+                        writeFileSymbols(result);
+                        return null;
+                    });
+                } catch (Exception e) {
+                    log.error("写入符号失败: {}", result.relativePath(), e);
+                }
+            }
             for (FileParseResult result : parseResults) {
                 try {
                     dbManager.executeInTransactionVoid(conn -> {
