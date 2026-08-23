@@ -37,7 +37,7 @@ DOCKER_REGISTRY=your-registry.com ./script/release.sh --push-docker
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `VERSION` | 版本号（覆盖 --version） | 从 pom.xml 读取 |
-| `DOCKER_REGISTRY` | Docker 镜像仓库 | `ghcr.io/sodlinken` |
+| `DOCKER_REGISTRY` | Docker 镜像仓库 | `ghcr.io/lincoln-cn` |
 | `DOCKER_IMAGE_NAME` | Docker 镜像名 | `java-code-indexer` |
 | `DOCKER_TAG` | Docker 标签 | `latest` |
 

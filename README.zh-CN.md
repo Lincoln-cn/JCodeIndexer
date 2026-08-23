@@ -69,14 +69,14 @@ AI 编程助手探索一个不熟悉的 Java 项目时：
 
 ```bash
 # 从 GitHub Releases 下载（将 VERSION 替换为实际版本号，如 1.0.0）
-curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION.jar
+curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-VERSION.jar
 ```
 
 **方式二：从源码构建**（需要 Java 21+ 和 Maven 3.8+）
 
 ```bash
-git clone https://github.com/sodlinken/java-code-indexer.git
-cd java-code-indexer
+git clone https://github.com/Lincoln-cn/JCodeIndexer.git
+cd JCodeIndexer
 mvn package -q -DskipTests
 # 产物：target/java-code-indexer-*-shaded.jar
 ```
@@ -484,8 +484,8 @@ DOCKER_REGISTRY=your-registry.com ./script/release.sh --push-docker
 
 ```bash
 # 克隆并构建
-git clone https://github.com/sodlinken/java-code-indexer.git
-cd java-code-indexer
+git clone https://github.com/Lincoln-cn/JCodeIndexer.git
+cd JCodeIndexer
 mvn package -q -DskipTests
 
 # 索引本项目

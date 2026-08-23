@@ -266,7 +266,7 @@ FROM eclipse-temurin:21-jre-alpine
 
 LABEL org.opencontainers.image.title="Java Code Indexer"
 LABEL org.opencontainers.image.description="MCP-based Java code indexing server for AI coding assistants"
-LABEL org.opencontainers.image.source="https://github.com/sodlinken/java-code-indexer"
+LABEL org.opencontainers.image.source="https://github.com/Lincoln-cn/JCodeIndexer"
 
 RUN addgroup -S jindexer && adduser -S jindexer -G jindexer
 

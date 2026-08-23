@@ -15,8 +15,8 @@
 ### Build & Run
 
 ```bash
-git clone https://github.com/sodlinken/java-code-indexer.git
-cd java-code-indexer
+git clone https://github.com/Lincoln-cn/JCodeIndexer.git
+cd JCodeIndexer
 mvn package -q -DskipTests
 ```
 
@@ -90,8 +90,8 @@ By contributing, you agree that your contributions will be licensed under the [A
 ### 构建与运行
 
 ```bash
-git clone https://github.com/sodlinken/java-code-indexer.git
-cd java-code-indexer
+git clone https://github.com/Lincoln-cn/JCodeIndexer.git
+cd JCodeIndexer
 mvn package -q -DskipTests
 ```
 

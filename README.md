@@ -1,5 +1,9 @@
 # Java Code Indexer
 
+[![CI](https://github.com/Lincoln-cn/JCodeIndexer/actions/workflows/ci.yml/badge.svg)](https://github.com/Lincoln-cn/JCodeIndexer/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Lincoln-cn/JCodeIndexer)](https://github.com/Lincoln-cn/JCodeIndexer/releases)
+[![License](https://img.shields.io/github/license/Lincoln-cn/JCodeIndexer)](LICENSE)
+
 > JVM AST-level code indexer (Java/Kotlin/Scala) with SQLite storage, exposed as an [MCP](https://modelcontextprotocol.io/) server for AI coding assistants.
 
 [中文](README.zh-CN.md) | English
@@ -71,22 +75,22 @@ Requires **Java 21+** (JRE or JDK). Docker and Native Image options bundle the r
 
 ```bash
 # Fat JAR (all platforms)
-curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION.jar
+curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-VERSION.jar
 
 # Native Image (Linux)
-curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION-linux-amd64.tar.gz
+curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-VERSION-linux-amd64.tar.gz
 
 # Native Image (macOS)
-curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION-darwin-arm64.tar.gz
+curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-VERSION-darwin-arm64.tar.gz
 
 # Native Image (Windows)
-curl -LO https://github.com/sodlinken/java-code-indexer/releases/latest/download/java-code-indexer-VERSION-windows-amd64.zip
+curl -LO https://github.com/Lincoln-cn/JCodeIndexer/releases/latest/download/java-code-indexer-VERSION-windows-amd64.zip
 ```
 
 **Option 2: Build from source** (requires Java 21+ and Maven 3.8+)
 
 ```bash
-git clone https://github.com/sodlinken/java-code-indexer.git
+git clone https://github.com/Lincoln-cn/JCodeIndexer.git
 cd java-code-indexer
 mvn package -q -DskipTests
 # output: target/java-code-indexer-*-shaded.jar
