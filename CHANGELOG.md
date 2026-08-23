@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-08-23
+
+### Fixed
+- **MCP 协议缺口**: initialize 响应声明 `progress` capability;`notifications/initialized` 通知被正确识别处理;`ping` 返回空 result(符合 JSON-RPC/MCP 规范)
+- **list_modules 工具注册**: 单项目模式下不再被 `auto_discover` 条件门控,始终注册(描述注明仅在 auto_discover 模式返回数据)
+- **complexity_report 每方法复杂度**: 现在按方法返回 `cyclomatic_complexity` 和 `cognitive_complexity`;`class_name` 参数先定位类再按文件取方法,修复类名下方法列表为空的问题
+- **返回格式统一**: `find_route`、`get_type_hierarchy`、`index_status` 补充 `total` 字段;单项目模式 `project` 返回项目根目录名而非 `"default"`
+
+### Changed
+- 文档/仓库卫生: README、CONTRIBUTING、mkdocs 中失效的 `sodlinken` 仓库 URL 统一更新为 `Lincoln-cn/JCodeIndexer`;README 添加 CI/Release/License badges
+
+## [2.1.0] - 2026-08-02
+
+### Added
+- **两阶段写入索引**: 先写入所有符号再解析引用,解决跨文件引用解析的顺序依赖问题
+- **并行化索引引擎**: 消除索引性能瓶颈,大幅提升大项目索引速度
+- **Shell 脚本解析器**: 索引 `.sh` 文件
+- **Python 解析器**: 索引 Python 文件
+- **get_call_graph 增强**: 新增 `filter`(all/project/jdk)和 `limit` 参数;callee 类型推断(JDK/VARIABLE_METHOD/STATIC_METHOD/OPTIONAL/STREAM/RECORD_ACCESSOR/UNKNOWN)
+- **JavaParser SymbolResolver 集成**: 解析项目内方法调用,生成完全限定名
+
+### Fixed
+- `insertReferences` 不再跳过 symbolId=0 的未解析引用
+- `deleteAllByFiles` 列名映射和 `incrementalReindex` 两阶段适配
+- 引用解析支持简单名称查找和精确匹配优先
+- `get_file_info` 返回格式修正
+- `find_by_annotation` 注解关联逻辑修复
+
+### Changed
+- README 更新反映两阶段索引架构和并行化优化
+- 设计文档补充数据库迁移机制说明
+
 ## [2.0.0] - 2026-07-18
 
 ### Added

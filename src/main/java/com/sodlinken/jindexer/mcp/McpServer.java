@@ -41,6 +41,7 @@ public class McpServer {
     private final DataInputStream dataIn;
     private final BufferedWriter writer;
     private volatile boolean running = true;
+    private volatile boolean initialized = false;
     private final java.util.concurrent.atomic.AtomicInteger pendingTasks = new java.util.concurrent.atomic.AtomicInteger(0);
 
     public McpServer(Config config) {
@@ -70,11 +71,12 @@ public class McpServer {
             defaultProjectName = projects.keySet().iterator().next();
             log.info("自动发现模式: {} 个模块, 默认模块={}", projects.size(), defaultProjectName);
         } else {
-            // 单项目模式（向后兼容）
-            String name = "default";
+            // 单项目模式（向后兼容）：以项目根目录名作为项目名
+            Path root = config.getProjectRoot();
+            String name = root != null && root.getFileName() != null ? root.getFileName().toString() : "default";
             projects.put(name, ProjectContext.create(config));
             defaultProjectName = name;
-            log.info("单项目模式: projectRoot={}", config.getProjectRoot());
+            log.info("单项目模式: projectName={}, projectRoot={}", name, config.getProjectRoot());
         }
 
         // 初始化文件监听器
@@ -268,9 +270,14 @@ public class McpServer {
 
             if (method == null) return;
 
-            // MCP 规范：无 id 的消息是通知（notification），应静默忽略
+            // MCP 规范：无 id 的消息是通知（notification），不应返回响应
             if (idElement == null) {
-                log.debug("忽略通知消息: {}", method);
+                if ("notifications/initialized".equals(method)) {
+                    initialized = true;
+                    log.info("客户端已发送 notifications/initialized");
+                } else {
+                    log.debug("忽略通知消息: {}", method);
+                }
                 return;
             }
 
@@ -282,7 +289,7 @@ public class McpServer {
                 case "tools/call" -> handleToolsCall(idElement, params);
                 case "resources/list" -> handleResourcesList(idElement);
                 case "resources/read" -> handleResourcesRead(idElement, params);
-                case "ping" -> sendResult(idElement, Map.of("pong", true));
+                case "ping" -> sendResult(idElement, Map.of());
                 default -> sendError(idElement, -32601, "Method not found: " + method);
             }
         } catch (Exception e) {
@@ -308,6 +315,9 @@ public class McpServer {
         JsonObject resources = new JsonObject();
         resources.addProperty("listChanged", false);
         capabilities.add("resources", resources);
+
+        // reindex 时会发送 notifications/progress，声明 progress capability
+        capabilities.add("progress", new JsonObject());
 
         result.add("capabilities", capabilities);
 
@@ -429,15 +439,13 @@ public class McpServer {
             ));
         }
 
-        // 1b. list_modules（autoDiscover 模式下可用）
-        if (config.isAutoDiscover()) {
-            Map<String, Object> listModulesParams = new LinkedHashMap<>();
-            toolsArray.add(createTool(
-                "list_modules",
-                "列出自动发现的所有子模块（Maven/Gradle 多模块项目）",
-                listModulesParams
-            ));
-        }
+        // 1b. list_modules（始终注册；仅在 auto_discover 模式启用时返回模块数据）
+        Map<String, Object> listModulesParams = new LinkedHashMap<>();
+        toolsArray.add(createTool(
+            "list_modules",
+            "列出自动发现的所有子模块（Maven/Gradle 多模块项目；仅在 auto_discover 模式启用时返回数据）",
+            listModulesParams
+        ));
 
         // 2. find_symbol
         Map<String, Object> findSymbolParams = new LinkedHashMap<>();
@@ -1357,7 +1365,8 @@ public class McpServer {
                 "project", resolveProjectName(args),
                 "http_method", httpMethod,
                 "path", path,
-                "matched", false
+                "matched", false,
+                "total", 0
             );
         }
 
@@ -1382,7 +1391,8 @@ public class McpServer {
             "matched_route", route.path(),
             "controller", controllerName,
             "file", route.filePath(),
-            "line", route.startLine()
+            "line", route.startLine(),
+            "total", 1
         );
     }
 
@@ -1418,7 +1428,8 @@ public class McpServer {
                 "qualified_name", s.qualifiedName() != null ? s.qualifiedName() : "",
                 "type", className.equals(s.superClass()) ? "extends" : "implements"
             )).toList(),
-            "depth", Math.max(parents.size(), children.size())
+            "depth", Math.max(parents.size(), children.size()),
+            "total", parents.size() + children.size()
         );
     }
 
@@ -1567,21 +1578,61 @@ public class McpServer {
         String className = args.has("class_name") ? args.get("class_name").getAsString() : null;
         String filePath = args.has("file_path") ? args.get("file_path").getAsString() : null;
 
-        // 获取方法列表
-        var symbols = className != null
-            ? storage.searchSymbolsByName(className, 100)
-            : storage.findSymbolsByFile(filePath);
+        // 获取方法列表：class_name 先定位类符号再按文件取方法；file_path 直接按文件查询
+        List<Symbol> symbols;
+        if (className != null) {
+            var classSymbols = storage.searchSymbolsByName(className, 20);
+            Optional<Symbol> classSym = classSymbols.stream()
+                .filter(s -> s.kind() == Symbol.SymbolKind.CLASS)
+                .findFirst();
+            if (classSym.isEmpty()) {
+                classSym = classSymbols.stream().findFirst();
+            }
+            symbols = classSym.isEmpty()
+                ? List.of()
+                : storage.findSymbolsByFile(classSym.get().filePath());
+        } else {
+            symbols = filePath != null ? storage.findSymbolsByFile(filePath) : List.of();
+        }
 
+        // 按文件缓存源码，避免同一文件反复读取
+        Map<String, String> fileCache = new HashMap<>();
         List<Map<String, Object>> methods = new ArrayList<>();
         for (var sym : symbols) {
-            if (sym.kind() == Symbol.SymbolKind.METHOD) {
-                methods.add(Map.of(
-                    "name", sym.name(),
-                    "qualified_name", sym.qualifiedName(),
-                    "file", sym.filePath(),
-                    "line", sym.startLine()
-                ));
+            if (sym.kind() != Symbol.SymbolKind.METHOD) continue;
+
+            int cyclomatic = 0;
+            int cognitive = 0;
+            try {
+                String content = fileCache.computeIfAbsent(sym.filePath(), fp -> {
+                    try {
+                        Path file = ctx.config().getProjectRoot().resolve(fp);
+                        return Files.readString(file);
+                    } catch (Exception e) {
+                        return null;
+                    }
+                });
+                if (content != null) {
+                    String[] lines = content.split("\n", -1);
+                    StringBuilder body = new StringBuilder();
+                    for (int i = sym.startLine() - 1; i < Math.min(sym.endLine(), lines.length); i++) {
+                        body.append(lines[i]).append("\n");
+                    }
+                    String methodBody = body.toString();
+                    cyclomatic = com.sodlinken.jindexer.analysis.ComplexityAnalyzer.calculateCyclomaticComplexity(methodBody);
+                    cognitive = com.sodlinken.jindexer.analysis.ComplexityAnalyzer.calculateCognitiveComplexity(methodBody);
+                }
+            } catch (Exception e) {
+                // 源文件不可读时复杂度记为 0
             }
+            methods.add(Map.of(
+                "name", sym.name(),
+                "qualified_name", sym.qualifiedName(),
+                "file", sym.filePath(),
+                "line", sym.startLine(),
+                "cyclomatic_complexity", cyclomatic,
+                "cognitive_complexity", cognitive
+            ));
         }
 
         // 获取代码度量（包含复杂度）- 通过类名查找
@@ -1721,7 +1772,8 @@ public class McpServer {
             "chunks", stats.getOrDefault("chunks", 0),
             "files", stats.getOrDefault("files", 0),
             "config_entries", stats.getOrDefault("config_entries", 0),
-            "dependencies", stats.getOrDefault("dependencies", 0)
+            "dependencies", stats.getOrDefault("dependencies", 0),
+            "total", stats.getOrDefault("symbols", 0)
         );
     }
 
