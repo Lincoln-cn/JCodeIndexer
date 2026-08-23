@@ -287,6 +287,9 @@ jobs:
             type=raw,value=${{ steps.version.outputs.version }}
             type=raw,value=latest
 
+      - name: Prepare dist directory
+        run: mkdir -p dist
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
@@ -298,12 +301,16 @@ jobs:
             JAR_FILE=${{ github.workspace }}/target/*-shaded.jar
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # docker-container driver 下镜像构建在 buildkit 内，本地 docker save 拿不到，
+          # 因此通过 type=docker 输出直接导出离线 tar（单平台构建适用）
+          outputs: |
+            type=registry
+            type=docker,dest=dist/docker-image-${{ steps.version.outputs.version }}.tar
 
       - name: Export offline image
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          mkdir -p dist
-          docker save sodlinken/jcodeindexer:${VERSION} | gzip > dist/docker-image-${VERSION}.tar.gz
+          gzip -9 -f dist/docker-image-${VERSION}.tar
 
       - name: Upload Docker image
         uses: actions/upload-artifact@v4

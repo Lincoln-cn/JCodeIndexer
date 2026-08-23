@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **release 流水线 Docker 离线镜像资产**: 修复 `docker-image-*.tar.gz` 始终为空(20 字节)的问题 —— 构建输出改用 buildx `type=docker` 直接导出离线 tar(原 `docker save` 在 `docker-container` driver 下无法访问 buildkit 内的镜像)
+
 ## [2.1.1] - 2026-08-23
 
 ### Fixed
