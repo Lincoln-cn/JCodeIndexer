@@ -144,6 +144,35 @@ class PomParserTest {
     }
 
     @Test
+    void resolveProjectVersionWhenPomHasParent(@TempDir Path tempDir) throws Exception {
+        Path pom = tempDir.resolve("pom.xml");
+        Files.writeString(pom, """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <project>
+                <modelVersion>4.0.0</modelVersion>
+                <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>parent</artifactId>
+                    <version>1.0.0</version>
+                </parent>
+                <artifactId>child</artifactId>
+                <version>2.0.0</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>shared</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                </dependencies>
+            </project>
+            """);
+
+        List<Dependency> deps = parser.parse("pom.xml", pom);
+        assertEquals(1, deps.size());
+        assertEquals("2.0.0", deps.get(0).version());
+    }
+
+    @Test
     void isPomFile() {
         assertTrue(PomParser.isPomFile("pom.xml"));
         assertTrue(PomParser.isPomFile("POM.XML"));

@@ -124,16 +124,13 @@ public class PomParser {
     }
 
     private String extractProjectVersion(Document doc) {
-        NodeList versionNodes = doc.getElementsByTagName("version");
-        for (int i = 0; i < versionNodes.getLength(); i++) {
-            Node node = versionNodes.item(i);
-            Node parent = node.getParentNode();
-            // 排除 <parent> 内的 version
-            if (parent != null && parent.getParentNode() != null
-                && "parent".equals(parent.getParentNode().getNodeName())) {
+        NodeList projectChildren = doc.getDocumentElement().getChildNodes();
+        for (int i = 0; i < projectChildren.getLength(); i++) {
+            Node node = projectChildren.item(i);
+            if (!(node instanceof Element element) || !"version".equals(element.getTagName())) {
                 continue;
             }
-            String val = node.getTextContent().trim();
+            String val = element.getTextContent().trim();
             if (!val.isEmpty()) return val;
         }
         return null;
